@@ -78,13 +78,16 @@ pi --offline --no-session --no-tools -e .pi/extensions/pi-realtime/index.ts --li
 /realtime fake transcript <text>
 /realtime fake tool <tool_name> <json>
 /realtime citations
+/realtime usage [--session <providerSessionId>] [--details]
 /realtime primary <providerSessionId>
 /realtime stop [--session <providerSessionId>]
 ```
 
 The fake provider exercises transcript events, context packet delivery, direct voice tool calls, Pinotator citation lookup shape, voice-derived Pi instruction submission, provider-scoped tool result routing, and shutdown cleanup without API keys, microphone access, or network.
 
-The OpenAI adapter currently covers text/context/tool-call, raw microphone input, raw audio playback, and opt-in WebRTC helper media. It is guarded by `OPENAI_API_KEY`; use `/realtime openai text <message>` for text smoke tests. Raw `/realtime openai mic start` plus `/realtime openai audio start` uses `ffmpeg`/`ffplay` and does not provide local acoustic echo cancellation, so use headphones. For speaker-safe testing, use `/realtime openai webrtc start` to open the localhost browser helper with WebRTC echo cancellation/noise suppression/AGC. Visible transcript notifications remain enabled.
+The OpenAI adapter currently covers text/context/tool-call, raw microphone input, raw audio playback, opt-in WebRTC helper media, and usage telemetry. It is guarded by `OPENAI_API_KEY`; use `/realtime openai text <message>` for text smoke tests. Raw `/realtime openai mic start` plus `/realtime openai audio start` uses `ffmpeg`/`ffplay` and does not provide local acoustic echo cancellation, so use headphones. For speaker-safe testing, use `/realtime openai webrtc start` to open the localhost browser helper with WebRTC echo cancellation/noise suppression/AGC. Visible transcript notifications remain enabled.
+
+Use `/realtime usage --details` during live tests to inspect durable usage observations from `response.done.response.usage` and input transcription usage events. Local cost estimates use checked-in pricing constants for conversational response usage; separately billed transcription usage is tracked but excluded when its model-specific rate is unknown. The OpenAI dashboard remains authoritative.
 
 ## Planning docs
 
@@ -92,5 +95,6 @@ The OpenAI adapter currently covers text/context/tool-call, raw microphone input
 - `.ai/docs/realtime-voice/architecture.md`
 - `.ai/docs/realtime-voice/input-injection-decision.md`
 - `.ai/docs/realtime-voice/webrtc-helper-goal-plan.md`
+- `.ai/docs/realtime-voice/usage-instrumentation-goal-plan.md`
 
 Future provider work should keep OpenAI/Gemini SDK imports isolated to `providers/openai.ts` and `providers/gemini.ts`.

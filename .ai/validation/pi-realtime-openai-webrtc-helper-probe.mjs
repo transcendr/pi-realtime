@@ -45,6 +45,8 @@ assert.match(server, /openHelperUrl/);
 assert.match(server, /unregisterSession/);
 assert.match(server, /No WebRTC helper session/);
 assert.match(protocol, /WebRTCHelperInboundEvent/);
+assert.match(protocol, /type: "usage"/);
+assert.match(protocol, /normalizeUsageEvent/);
 
 assert.match(html, /pi-realtime WebRTC helper/);
 assert.match(client, /echoCancellation:\s*\{\s*ideal:\s*true\s*\}/);
@@ -58,6 +60,9 @@ assert.match(client, /remoteAudio\.srcObject = null/);
 assert.match(client, /RTCPeerConnection/);
 assert.match(client, /createDataChannel\("oai-events"\)/);
 assert.match(client, /https:\/\/api\.openai\.com\/v1\/realtime\/calls/);
+assert.match(client, /source: "response"/);
+assert.match(client, /source: "input_transcription"/);
+assert.match(client, /logUsage/);
 assert.doesNotMatch(client, /\/v1\/realtime\?model=/);
 assert.doesNotMatch(client, /beta_api_shape/);
 assert.doesNotMatch(client, /OPENAI_API_KEY/);

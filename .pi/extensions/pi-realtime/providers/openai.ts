@@ -2,6 +2,7 @@ import { OpenAIRealtimeWebSocket } from "openai/realtime/websocket";
 import type { RealtimeClientEvent, RealtimeFunctionTool, RealtimeServerEvent } from "openai/resources/realtime/realtime";
 import type { ContextPacket, DisconnectReason, NormalizedProviderEvent, ProviderDeliveryReceipt, ProviderKind, ProviderSessionId, VoiceToolName, VoiceToolResultRecord, VoiceToolSurface } from "../types";
 import type { ProviderConnectConfig, ProviderEventSink, RealtimeProviderAdapter, VoiceResponseRequest } from "./types";
+import { usageFromOpenAIInputTranscription, usageFromOpenAIResponseDone } from "./openai-usage";
 
 export function hasOpenAIRealtimeCredentials(env: NodeJS.ProcessEnv = process.env): boolean {
 	return typeof env.OPENAI_API_KEY === "string" && env.OPENAI_API_KEY.trim().length > 0;
@@ -98,17 +99,28 @@ export class OpenAIRealtimeProviderAdapter implements RealtimeProviderAdapter {
 
 	private handleServerEvent(event: RealtimeServerEvent): void {
 		if (event.type === "response.function_call_arguments.done") return this.emitToolCall(event.name, event.call_id, event.arguments, event.event_id);
-		if (event.type === "conversation.item.input_audio_transcription.completed") return this.emit({ type: "user_transcript", text: event.transcript, final: true, providerEventId: event.event_id });
+		if (event.type === "conversation.item.input_audio_transcription.completed") {
+			this.emitUsage(usageFromOpenAIInputTranscription(event, { providerSessionId: this.providerSessionId, model: this.model, providerEventId: event.event_id }));
+			return this.emit({ type: "user_transcript", text: event.transcript, final: true, providerEventId: event.event_id });
+		}
 		if (event.type === "response.output_text.done") return this.emit({ type: "assistant_transcript", text: event.text, final: true, providerEventId: event.event_id });
 		if (event.type === "response.output_audio_transcript.done") return this.emit({ type: "assistant_transcript", text: event.transcript, final: true, providerEventId: event.event_id });
 		if (event.type === "response.output_audio.delta") return this.emitAudio(Buffer.from(event.delta, "base64"), event.event_id);
 		if (event.type === "input_audio_buffer.speech_started") return this.emit({ type: "turn_signal", signal: "speech_started", providerEventId: event.event_id });
 		if (event.type === "input_audio_buffer.speech_stopped") return this.emit({ type: "turn_signal", signal: "speech_stopped", providerEventId: event.event_id });
-		if (event.type === "response.done") return this.emit({ type: "turn_signal", signal: "turn_complete", providerEventId: event.event_id });
+		if (event.type === "response.done") {
+			this.emitUsage(usageFromOpenAIResponseDone(event, { providerSessionId: this.providerSessionId, model: this.model, providerEventId: event.event_id }));
+			return this.emit({ type: "turn_signal", signal: "turn_complete", providerEventId: event.event_id });
+		}
 	}
 
 	private emitToolCall(name: string, callId: string, rawArgs: string, providerEventId: string): void {
 		this.emit({ type: "tool_call", providerEventId, call: { voiceToolCallId: callId, provider: "openai", providerSessionId: this.providerSessionId, providerToolCallId: callId, name: normalizeToolName(name), arguments: parseArgs(rawArgs), status: "pending", createdAt: Date.now() } });
+	}
+
+	private emitUsage(observation: ReturnType<typeof usageFromOpenAIResponseDone>): void {
+		if (!observation) return;
+		this.emit({ type: "usage", observation, providerEventId: observation.providerEventId });
 	}
 
 	private emitAudio(audio: Buffer, providerEventId: string): void {

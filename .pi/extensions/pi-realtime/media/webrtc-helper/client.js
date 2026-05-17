@@ -67,12 +67,20 @@ function logAudioSettings(track) {
 
 function handleRealtimeEvent(event) {
 	if (event.type === "response.function_call_arguments.done") return postEvent({ type: "tool_call", providerEventId: event.event_id, call: { voiceToolCallId: event.call_id, providerToolCallId: event.call_id, name: event.name, arguments: parseArgs(event.arguments) } });
-	if (event.type === "conversation.item.input_audio_transcription.completed") return postEvent({ type: "user_transcript", providerEventId: event.event_id, text: event.transcript || "", final: true });
+	if (event.type === "conversation.item.input_audio_transcription.completed") {
+		logUsage("input transcription", event.usage);
+		postEvent({ type: "usage", source: "input_transcription", providerEventId: event.event_id, realtimeEvent: event }).catch((error) => log(`usage post failed: ${error.message}`));
+		return postEvent({ type: "user_transcript", providerEventId: event.event_id, text: event.transcript || "", final: true });
+	}
 	if (event.type === "response.output_audio_transcript.done") return postEvent({ type: "assistant_transcript", providerEventId: event.event_id, text: event.transcript || "", final: true });
 	if (event.type === "response.output_text.done") return postEvent({ type: "assistant_transcript", providerEventId: event.event_id, text: event.text || "", final: true });
 	if (event.type === "input_audio_buffer.speech_started") return postEvent({ type: "turn_signal", providerEventId: event.event_id, signal: "speech_started" });
 	if (event.type === "input_audio_buffer.speech_stopped") return postEvent({ type: "turn_signal", providerEventId: event.event_id, signal: "speech_stopped" });
-	if (event.type === "response.done") return postEvent({ type: "turn_signal", providerEventId: event.event_id, signal: "turn_complete" });
+	if (event.type === "response.done") {
+		logUsage("response", event.response?.usage);
+		postEvent({ type: "usage", source: "response", providerEventId: event.event_id, realtimeEvent: event }).catch((error) => log(`usage post failed: ${error.message}`));
+		return postEvent({ type: "turn_signal", providerEventId: event.event_id, signal: "turn_complete" });
+	}
 	if (event.type === "error") return postEvent({ type: "error", providerEventId: event.event_id, message: event.error?.message || "OpenAI realtime error", recoverable: true });
 }
 
@@ -103,6 +111,13 @@ async function json(url, options) {
 	const response = await fetch(url, options);
 	if (!response.ok) throw new Error(`${url} failed: ${response.status} ${await response.text()}`);
 	return response.json();
+}
+
+function logUsage(label, usage) {
+	if (!usage) return;
+	const input = usage.input_token_details || {};
+	const output = usage.output_token_details || {};
+	log(`usage ${label}: total=${usage.total_tokens || 0} input(text=${input.text_tokens || 0},audio=${input.audio_tokens || 0},cached=${input.cached_tokens || 0}) output(text=${output.text_tokens || 0},audio=${output.audio_tokens || 0})`);
 }
 
 function parseArgs(raw) {

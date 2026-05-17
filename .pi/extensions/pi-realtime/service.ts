@@ -1,6 +1,6 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { createMacOSFfmpegAudioCapture, type AudioCaptureController } from "./audio";
-import { contextPacketSent, nextProviderSessionId, primaryChanged, providerEventObserved, sessionStarted, sessionStopped, voiceToolCallReceived, voiceToolResultSent } from "./events";
+import { contextPacketSent, nextProviderSessionId, primaryChanged, providerEventObserved, sessionStarted, sessionStopped, usageObserved, voiceToolCallReceived, voiceToolResultSent } from "./events";
 import { createFfplayAudioPlayback, type AudioPlaybackController } from "./playback";
 import { defaultVoiceToolSurface, voiceSystemPrompt } from "./prompt";
 import { createWebRTCHelperServer, openHelperUrl } from "./media/webrtc-helper/server";
@@ -14,7 +14,7 @@ import { createOpenAIWebRTCClientSecret, hasOpenAIWebRTCCredentials } from "./pr
 import type { ProviderEventSink, RealtimeProviderAdapter } from "./providers/types";
 import type { CitationDeck, ContextPacket, NormalizedProviderEvent, ProviderKind, ProviderSessionId, RealtimeState, VoiceInstructionInput, VoiceToolCallRecord, VoiceToolName, VoiceToolResultRecord, VoiceToolSurface } from "./types";
 import type { Store } from "./store";
-
+import { aggregateUsage, renderUsageSummary } from "./usage";
 export type Service = {
 	refresh(ctx: ExtensionContext): void;
 	state(): RealtimeState;
@@ -35,6 +35,7 @@ export type Service = {
 	startAudioPlayback(providerSessionId: ProviderSessionId): Promise<void>;
 	stopAudioPlayback(providerSessionId?: ProviderSessionId): Promise<void>;
 	audioPlaybackStatus(): string;
+	usageText(providerSessionId?: ProviderSessionId, details?: boolean): string;
 	startWebRTCHelper(providerSessionId: ProviderSessionId, ctx: ExtensionContext): Promise<string>;
 	stopWebRTCHelper(providerSessionId?: ProviderSessionId): Promise<void>;
 	webRTCHelperStatus(): string;
@@ -43,11 +44,9 @@ export type Service = {
 	simulateFakeToolCall(providerSessionId: ProviderSessionId, name: VoiceToolName, args?: Record<string, unknown>): Promise<string>;
 	shutdown(): Promise<void>;
 };
-
 export function createService(store: Store, controlPlane: ControlPlane): Service {
 	return new RealtimeService(store, controlPlane);
 }
-
 class RealtimeService implements Service {
 	private currentCtx: ExtensionContext | undefined;
 	private readonly surface = defaultVoiceToolSurface();
@@ -58,9 +57,7 @@ class RealtimeService implements Service {
 	private readonly rawEchoWarnings = new Set<ProviderSessionId>();
 	private readonly webrtcHelper: WebRTCHelperServer = createWebRTCHelperServer();
 	private readonly providerSink: ProviderEventSink = { onProviderEvent: (event) => void this.handleProviderEvent(event), onProviderAudio: (chunk) => this.handleProviderAudio(chunk) };
-
 	constructor(private readonly store: Store, private readonly controlPlane: ControlPlane) {}
-
 	refresh(ctx: ExtensionContext): void { this.currentCtx = ctx; this.store.hydrate(ctx); }
 	state(): RealtimeState { return this.store.state(); }
 	toolSurface(): VoiceToolSurface { return this.surface; }
@@ -69,13 +66,11 @@ class RealtimeService implements Service {
 	observeCitationDeck(ctx: ExtensionContext): CitationDeck { return this.controlPlane.observeCitations(ctx); }
 	recordToolCall(call: VoiceToolCallRecord): void { this.store.append(voiceToolCallReceived(call)); }
 	submitInstruction(input: VoiceInstructionInput): Promise<void> { return this.controlPlane.instructionSink.sendInstruction(input).then(() => undefined); }
-
 	async sendTextInput(providerSessionId: ProviderSessionId, text: string): Promise<void> {
 		const adapter = this.adapters.get(providerSessionId);
 		if (!adapter) throw new Error(`No live provider adapter for ${providerSessionId}`);
 		await adapter.sendTextInput(text);
 	}
-
 	async startMicrophone(providerSessionId: ProviderSessionId): Promise<void> {
 		const adapter = this.adapters.get(providerSessionId);
 		if (!adapter) throw new Error(`No live provider adapter for ${providerSessionId}`);
@@ -85,7 +80,6 @@ class RealtimeService implements Service {
 		this.audioCaptures.set(providerSessionId, capture);
 		await capture.start((chunk) => adapter.sendAudioInput(chunk).then(() => undefined), (error) => this.handleMicrophoneError(providerSessionId, error));
 	}
-
 	async stopMicrophone(providerSessionId?: ProviderSessionId): Promise<void> {
 		const ids = providerSessionId ? [providerSessionId] : [...this.audioCaptures.keys()];
 		for (const id of ids) {
@@ -126,6 +120,17 @@ class RealtimeService implements Service {
 	audioPlaybackStatus(): string {
 		if (this.audioPlaybacks.size === 0) return "audio playback: idle";
 		return ["audio playback:", ...[...this.audioPlaybacks].map(([id, playback]) => `- ${id} ${playback.status}`)].join("\n");
+	}
+
+	usageText(providerSessionId?: ProviderSessionId, details = false): string {
+		const state = this.store.state();
+		const summary = renderUsageSummary(aggregateUsage(state.usage, providerSessionId), details);
+		if (providerSessionId) {
+			const session = state.sessions.get(providerSessionId);
+			return session ? [`session: ${session.providerSessionId} ${session.provider}/${session.model} ${session.status}`, summary].join("\n") : summary;
+		}
+		const sessions = [...state.sessions.values()].map((session) => `- ${session.providerSessionId} ${session.provider}/${session.model} ${session.status}`);
+		return sessions.length > 0 ? [summary, "sessions:", ...sessions].join("\n") : summary;
 	}
 
 	async startWebRTCHelper(providerSessionId: ProviderSessionId, ctx: ExtensionContext): Promise<string> {
@@ -238,6 +243,7 @@ class RealtimeService implements Service {
 
 	private async handleProviderEvent(event: NormalizedProviderEvent): Promise<void> {
 		this.store.append(providerEventObserved(event));
+		if (event.type === "usage") this.store.append(usageObserved(event.observation));
 		this.notifyProviderEvent(event);
 		if (event.type !== "tool_call") return;
 		this.store.append(voiceToolCallReceived(event.call));

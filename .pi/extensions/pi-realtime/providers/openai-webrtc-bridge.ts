@@ -1,6 +1,7 @@
 import type { ContextPacket, DisconnectReason, ProviderDeliveryReceipt, ProviderKind, ProviderSessionId, VoiceToolResultRecord, VoiceToolSurface } from "../types";
 import type { ProviderConnectConfig, ProviderEventSink, RealtimeProviderAdapter, VoiceResponseRequest } from "./types";
 import type { WebRTCHelperServer } from "../media/webrtc-helper/protocol";
+import { usageFromOpenAIInputTranscription, usageFromOpenAIResponseDone } from "./openai-usage";
 
 export class OpenAIWebRTCBridgeAdapter implements RealtimeProviderAdapter {
 	readonly provider: ProviderKind = "openai";
@@ -11,7 +12,7 @@ export class OpenAIWebRTCBridgeAdapter implements RealtimeProviderAdapter {
 
 	async connect(config: ProviderConnectConfig, sink: ProviderEventSink): Promise<void> {
 		this.sink = sink;
-		this.helper.registerSession({ provider: config.provider, providerSessionId: config.providerSessionId, model: config.model, instructions: config.systemPrompt, toolSurface: config.toolSurface, initialContext: config.initialContext, createClientSecret: this.createClientSecret }, { onProviderEvent: (event) => sink.onProviderEvent(event) });
+		this.helper.registerSession({ provider: config.provider, providerSessionId: config.providerSessionId, model: config.model, instructions: config.systemPrompt, toolSurface: config.toolSurface, initialContext: config.initialContext, createClientSecret: this.createClientSecret, normalizeUsageEvent: (input) => input.source === "response" ? usageFromOpenAIResponseDone(input.realtimeEvent, { providerSessionId: this.providerSessionId, model: config.model, providerEventId: input.providerEventId, at: input.at }) : usageFromOpenAIInputTranscription(input.realtimeEvent, { providerSessionId: this.providerSessionId, model: config.model, providerEventId: input.providerEventId, at: input.at }) }, { onProviderEvent: (event) => sink.onProviderEvent(event) });
 		sink.onProviderEvent({ type: "connected", provider: "openai", providerSessionId: this.providerSessionId, localSeq: Date.now(), at: Date.now() });
 	}
 

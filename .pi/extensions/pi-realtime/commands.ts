@@ -12,6 +12,7 @@ export async function handleRealtimeCommand(args: string, ctx: ExtensionCommandC
 	if (cmd === "stop") return stop(rest, ctx, service);
 	if (cmd === "primary") return primary(rest, ctx, service);
 	if (cmd === "citations") return citations(ctx, service);
+	if (cmd === "usage") return usage(rest, ctx, service);
 	if (cmd === "text") return text(rest, ctx, service);
 	if (cmd === "mic") return mic(rest, ctx, service);
 	if (cmd === "audio") return audio(rest, ctx, service);
@@ -21,7 +22,7 @@ export async function handleRealtimeCommand(args: string, ctx: ExtensionCommandC
 }
 
 export function realtimeCompletions(): string[] {
-	return ["status", "start --provider fake", "start --provider openai", "text", "mic start", "mic stop", "audio start", "audio stop", "openai text", "openai mic start", "openai mic stop", "openai audio start", "openai audio stop", "openai webrtc start", "openai webrtc stop", "openai webrtc status", "fake transcript", "fake tool pi_state_snapshot {}", "fake tool pi_send_instruction {\"instruction\":\"...\"}", "stop", "primary", "citations", "help"];
+	return ["status", "start --provider fake", "start --provider openai", "text", "mic start", "mic stop", "audio start", "audio stop", "openai text", "openai mic start", "openai mic stop", "openai audio start", "openai audio stop", "openai webrtc start", "openai webrtc stop", "openai webrtc status", "usage", "usage --details", "fake transcript", "fake tool pi_state_snapshot {}", "fake tool pi_send_instruction {\"instruction\":\"...\"}", "stop", "primary", "citations", "help"];
 }
 
 async function start(tokens: string[], ctx: ExtensionCommandContext, service: Service): Promise<void> {
@@ -57,6 +58,11 @@ function citations(ctx: ExtensionCommandContext, service: Service): void {
 	const deck = service.observeCitationDeck(ctx);
 	if (deck.active.length === 0) return notify(ctx, "No active Pinotator citations observed.");
 	notify(ctx, [`Pinotator deck revision ${deck.revision}:`, ...deck.active.map((item) => `${item.displayRef} ${item.citationId} ${item.snippet}`)].join("\n"));
+}
+
+function usage(tokens: string[], ctx: ExtensionCommandContext, service: Service): void {
+	const providerSessionId = valueAfter(tokens, "--session") as ProviderSessionId | undefined;
+	notify(ctx, service.usageText(providerSessionId, tokens.includes("--details")));
 }
 
 async function text(tokens: string[], ctx: ExtensionCommandContext, service: Service): Promise<void> {
@@ -216,5 +222,6 @@ function helpText(): string {
 		"/realtime stop [--session <id>]",
 		"/realtime primary <providerSessionId>",
 		"/realtime citations — inspect current Pinotator citation deck",
+		"/realtime usage [--session <id>] [--details] — inspect provider usage telemetry and estimated response cost",
 	].join("\n");
 }

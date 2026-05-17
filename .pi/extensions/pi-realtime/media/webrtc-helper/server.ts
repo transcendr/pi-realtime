@@ -12,6 +12,7 @@ const CLIENT_JS = ".pi/extensions/pi-realtime/media/webrtc-helper/client.js";
 type HelperSession = {
 	config: WebRTCHelperSessionConfig;
 	createClientSecret(): Promise<unknown>;
+	normalizeUsageEvent?: WebRTCHelperRegistrationConfig["normalizeUsageEvent"];
 	sink: WebRTCHelperSink;
 	outbox: WebRTCHelperOutboundEvent[];
 	seq: number;
@@ -53,14 +54,14 @@ class LocalWebRTCHelperServer implements WebRTCHelperServer {
 	}
 
 	registerSession(config: WebRTCHelperRegistrationConfig, sink: WebRTCHelperSink): void {
-		const { createClientSecret, ...sessionConfig } = config;
-		this.sessions.set(config.providerSessionId, { config: sessionConfig, createClientSecret, sink, outbox: [], seq: 0, lastSeenAt: Date.now() });
+		const { createClientSecret, normalizeUsageEvent, ...sessionConfig } = config;
+		this.sessions.set(config.providerSessionId, { config: sessionConfig, createClientSecret, normalizeUsageEvent, sink, outbox: [], seq: 0, lastSeenAt: Date.now() });
 	}
 
 	unregisterSession(providerSessionId: ProviderSessionId, reason: string): void {
 		const session = this.sessions.get(providerSessionId);
 		this.sessions.delete(providerSessionId);
-		session?.sink.onProviderEvent(this.normalize(providerSessionId, "openai", { type: "disconnected", reason }));
+		if (session) session.sink.onProviderEvent(this.normalize(session, { type: "disconnected", reason }) as NormalizedProviderEvent);
 	}
 
 	enqueue(providerSessionId: ProviderSessionId, event: Record<string, unknown>): void {
@@ -83,34 +84,64 @@ class LocalWebRTCHelperServer implements WebRTCHelperServer {
 	private async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
 		try {
 			const url = new URL(req.url ?? "/", `http://${HOST}`);
-			if (req.method === "GET" && /^\/pi-realtime\/openai\/[^/]+$/.test(url.pathname)) return this.serveFile(res, CLIENT_HTML, "text/html; charset=utf-8");
-			if (req.method === "GET" && url.pathname === "/pi-realtime/webrtc/client.js") return this.serveFile(res, CLIENT_JS, "text/javascript; charset=utf-8");
-			const match = /^\/pi-realtime\/openai\/([^/]+)\/(config|client-secret|event|outbox)$/.exec(url.pathname);
-			if (!match) return this.respond(res, 404, { error: "not_found" });
-			const providerSessionId = decodeURIComponent(match[1] ?? "");
-			const action = match[2];
-			const session = this.requireSession(providerSessionId);
-			session.lastSeenAt = Date.now();
-			if (req.method === "GET" && action === "config") return this.respond(res, 200, session.config);
-			if (req.method === "POST" && action === "client-secret") return this.respond(res, 200, await session.createClientSecret());
-			if (req.method === "POST" && action === "event") {
-				const inbound = await readJson<WebRTCHelperInboundEvent>(req);
-				session.sink.onProviderEvent(this.normalize(providerSessionId, session.config.provider, inbound));
-				return this.respond(res, 200, { ok: true });
-			}
-			if (req.method === "GET" && action === "outbox") {
-				const after = Number(url.searchParams.get("after") ?? "0");
-				return this.respond(res, 200, { events: session.outbox.filter((event) => event.id > after) });
-			}
-			return this.respond(res, 405, { error: "method_not_allowed" });
+			if (this.tryServeStatic(req, res, url)) return;
+			const route = this.sessionRoute(url);
+			if (!route) return this.respond(res, 404, { error: "not_found" });
+			await this.handleSessionRoute(req, res, url, route);
 		} catch (error) {
 			this.respond(res, 500, { error: error instanceof Error ? error.message : String(error) });
 		}
 	}
 
-	private normalize(providerSessionId: ProviderSessionId, provider: ProviderKind, inbound: WebRTCHelperInboundEvent): NormalizedProviderEvent {
+	private tryServeStatic(req: IncomingMessage, res: ServerResponse, url: URL): boolean {
+		if (req.method === "GET" && /^\/pi-realtime\/openai\/[^/]+$/.test(url.pathname)) {
+			this.serveFile(res, CLIENT_HTML, "text/html; charset=utf-8");
+			return true;
+		}
+		if (req.method === "GET" && url.pathname === "/pi-realtime/webrtc/client.js") {
+			this.serveFile(res, CLIENT_JS, "text/javascript; charset=utf-8");
+			return true;
+		}
+		return false;
+	}
+
+	private sessionRoute(url: URL): { providerSessionId: ProviderSessionId; action: string } | undefined {
+		const match = /^\/pi-realtime\/openai\/([^/]+)\/(config|client-secret|event|outbox)$/.exec(url.pathname);
+		return match ? { providerSessionId: decodeURIComponent(match[1] ?? ""), action: match[2] ?? "" } : undefined;
+	}
+
+	private async handleSessionRoute(req: IncomingMessage, res: ServerResponse, url: URL, route: { providerSessionId: ProviderSessionId; action: string }): Promise<void> {
+		const session = this.requireSession(route.providerSessionId);
+		session.lastSeenAt = Date.now();
+		if (req.method === "GET" && route.action === "config") return this.respond(res, 200, session.config);
+		if (req.method === "POST" && route.action === "client-secret") return this.respond(res, 200, await session.createClientSecret());
+		if (req.method === "POST" && route.action === "event") return this.handleInboundEvent(req, res, session);
+		if (req.method === "GET" && route.action === "outbox") return this.respondOutbox(res, url, session);
+		return this.respond(res, 405, { error: "method_not_allowed" });
+	}
+
+	private async handleInboundEvent(req: IncomingMessage, res: ServerResponse, session: HelperSession): Promise<void> {
+		const inbound = await readJson<WebRTCHelperInboundEvent>(req);
+		const event = this.normalize(session, inbound);
+		if (event) session.sink.onProviderEvent(event);
+		this.respond(res, 200, { ok: true });
+	}
+
+	private respondOutbox(res: ServerResponse, url: URL, session: HelperSession): void {
+		const after = Number(url.searchParams.get("after") ?? "0");
+		this.respond(res, 200, { events: session.outbox.filter((event) => event.id > after) });
+	}
+
+	private normalize(session: HelperSession, inbound: WebRTCHelperInboundEvent): NormalizedProviderEvent | undefined {
+		const providerSessionId = session.config.providerSessionId;
+		const provider = session.config.provider;
 		const base = { provider, providerSessionId, providerEventId: inbound.providerEventId, localSeq: Date.now(), at: Date.now() };
 		if (inbound.type === "tool_call") return { ...base, type: "tool_call", call: { ...inbound.call, provider, providerSessionId, status: "pending", createdAt: Date.now() } };
+		if (inbound.type === "usage") {
+			if (!session.normalizeUsageEvent) return undefined;
+			const observation = session.normalizeUsageEvent({ source: inbound.source, realtimeEvent: inbound.realtimeEvent, providerEventId: inbound.providerEventId, at: base.at });
+			return observation ? { ...base, type: "usage", observation } : undefined;
+		}
 		return { ...base, ...inbound } as NormalizedProviderEvent;
 	}
 

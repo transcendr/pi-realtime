@@ -1,3 +1,5 @@
+import type { UsageObservation } from "./usage";
+
 export const EVENT_VERSION = 1;
 export const CUSTOM_EVENT_TYPE = "pi-realtime.events.v1";
 export const CUSTOM_MESSAGE_TYPE = "pi-realtime.context";
@@ -48,6 +50,7 @@ export type NormalizedProviderEvent =
 	| (ProviderEventBase & { type: "user_transcript"; text: string; final: boolean })
 	| (ProviderEventBase & { type: "assistant_transcript"; text: string; final: boolean })
 	| (ProviderEventBase & { type: "tool_call"; call: VoiceToolCallRecord })
+	| (ProviderEventBase & { type: "usage"; observation: UsageObservation })
 	| (ProviderEventBase & { type: "turn_signal"; signal: "speech_started" | "speech_stopped" | "waiting_for_input" | "interrupted" | "turn_complete" })
 	| (ProviderEventBase & { type: "context_delivery"; packetId: ContextPacketId; revision: number; status: "delivered" | "skipped" | "failed"; message?: string });
 
@@ -166,6 +169,7 @@ export type RealtimeEvent =
 	| { version: typeof EVENT_VERSION; kind: "voice_tool_call_received"; eventId: string; at: number; call: VoiceToolCallRecord }
 	| { version: typeof EVENT_VERSION; kind: "voice_tool_result_sent"; eventId: string; at: number; result: VoiceToolResultRecord }
 	| { version: typeof EVENT_VERSION; kind: "voice_instruction_submitted"; eventId: string; at: number; instruction: VoiceInstructionRecord; receipt: VoiceInstructionReceipt }
+	| { version: typeof EVENT_VERSION; kind: "usage_observed"; eventId: string; at: number; observation: UsageObservation }
 	| { version: typeof EVENT_VERSION; kind: "citation_deck_observed"; eventId: string; at: number; deck: CitationDeckSummary }
 	| { version: typeof EVENT_VERSION; kind: "config_changed"; eventId: string; at: number; patch: Partial<RealtimeConfig> };
 
@@ -181,5 +185,6 @@ export type RealtimeState = {
 	contextRevisions: Map<ProviderSessionId, ProviderContextRevisionState>;
 	citationDeck: CitationDeck | null;
 	lastInstruction?: VoiceInstructionRecord;
+	usage: UsageObservation[];
 	history: RealtimeHistorySummary[];
 };

@@ -1,4 +1,5 @@
 import type { ContextPacket, NormalizedProviderEvent, ProviderKind, ProviderSessionId, VoiceToolCallRecord, VoiceToolSurface } from "../../types";
+import type { UsageObservation, UsageSource } from "../../usage";
 
 export type WebRTCHelperSessionConfig = {
 	provider: ProviderKind;
@@ -11,6 +12,7 @@ export type WebRTCHelperSessionConfig = {
 
 export type WebRTCHelperRegistrationConfig = WebRTCHelperSessionConfig & {
 	createClientSecret(): Promise<unknown>;
+	normalizeUsageEvent?(input: { source: UsageSource; realtimeEvent: unknown; providerEventId?: string; at?: number }): UsageObservation | undefined;
 };
 
 export type WebRTCHelperInboundEvent =
@@ -20,7 +22,8 @@ export type WebRTCHelperInboundEvent =
 	| { type: "user_transcript"; text: string; final: boolean; providerEventId?: string }
 	| { type: "assistant_transcript"; text: string; final: boolean; providerEventId?: string }
 	| { type: "turn_signal"; signal: "speech_started" | "speech_stopped" | "waiting_for_input" | "interrupted" | "turn_complete"; providerEventId?: string }
-	| { type: "tool_call"; call: Omit<VoiceToolCallRecord, "provider" | "providerSessionId" | "status" | "createdAt">; providerEventId?: string };
+	| { type: "tool_call"; call: Omit<VoiceToolCallRecord, "provider" | "providerSessionId" | "status" | "createdAt">; providerEventId?: string }
+	| { type: "usage"; source: UsageSource; realtimeEvent: unknown; providerEventId?: string };
 
 export type WebRTCHelperOutboundEvent = {
 	id: number;
