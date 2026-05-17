@@ -7,6 +7,7 @@ const service = readFileSync(".pi/extensions/pi-realtime/service.ts", "utf8");
 const providerTypes = readFileSync(".pi/extensions/pi-realtime/providers/types.ts", "utf8");
 const bridge = readFileSync(".pi/extensions/pi-realtime/providers/openai-webrtc-bridge.ts", "utf8");
 const ephemeral = readFileSync(".pi/extensions/pi-realtime/providers/openai-webrtc.ts", "utf8");
+const shared = readFileSync(".pi/extensions/pi-realtime/providers/shared.ts", "utf8");
 const server = readFileSync(".pi/extensions/pi-realtime/media/webrtc-helper/server.ts", "utf8");
 const protocol = readFileSync(".pi/extensions/pi-realtime/media/webrtc-helper/protocol.ts", "utf8");
 const html = readFileSync(".pi/extensions/pi-realtime/media/webrtc-helper/client.html", "utf8");
@@ -36,7 +37,8 @@ assert.match(bridge, /function_call_output/);
 assert.match(ephemeral, /client\.realtime\.clientSecrets\.create/);
 assert.match(ephemeral, /gpt-4o-mini-transcribe/);
 assert.match(ephemeral, /output_modalities: \["audio"\]/);
-assert.match(ephemeral, /OPENAI_API_KEY/);
+assert.match(shared, /OPENAI_API_KEY/);
+assert.match(ephemeral, /hasOpenAIWebRTCCredentials = hasOpenAIRealtimeCredentials/);
 
 assert.match(server, /createServer/);
 assert.match(server, /127\.0\.0\.1/);

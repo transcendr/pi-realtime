@@ -2,6 +2,7 @@ import type { ContextPacket, DisconnectReason, ProviderDeliveryReceipt, Provider
 import type { ProviderConnectConfig, ProviderEventSink, RealtimeProviderAdapter, VoiceResponseRequest } from "./types";
 import type { WebRTCHelperServer } from "../media/webrtc-helper/protocol";
 import { usageFromOpenAIInputTranscription, usageFromOpenAIResponseDone } from "./openai-usage";
+import { renderContextPacket } from "./shared";
 
 export class OpenAIWebRTCBridgeAdapter implements RealtimeProviderAdapter {
 	readonly provider: ProviderKind = "openai";
@@ -62,6 +63,3 @@ export function createOpenAIWebRTCBridgeAdapter(providerSessionId: ProviderSessi
 	return new OpenAIWebRTCBridgeAdapter(providerSessionId, helper, createClientSecret);
 }
 
-function renderContextPacket(packet: ContextPacket): string {
-	return [`[pi-realtime:${packet.channel}:rev-${packet.revision}] ${packet.summary}`, ...packet.sections.map((section) => `${section.title}\n${section.text}`)].join("\n\n");
-}
