@@ -21,7 +21,7 @@
     "gates:validation": "for f in .ai/validation/pi-realtime-*.mjs; do node \"$f\" || exit 1; done",
     "gates:deslop": "npx --yes d3sl0p typescript --report-min error .pi/extensions/pi-realtime",
     "scans:deslop": "npx --yes d3sl0p typescript --fail-on none --report-min lead .pi/extensions/pi-realtime",
-    "sentrux:baseline": "sentrux gate --save .pi/extensions/pi-realtime",
+    "sentrux:baseline": "bash ${HOME}/.codex/skills/pi-extension-dev/scripts/sentrux-save-baseline.sh .pi/extensions/pi-realtime",
     "gates:structure": "test -f .pi/extensions/pi-realtime/.sentrux/baseline.json || npm run sentrux:baseline && sentrux gate .pi/extensions/pi-realtime && sentrux check .pi/extensions/pi-realtime",
     "gates:quality": "npm run gates:structure && npm run gates:deslop && npm run gates:typecheck && npm run gates:validation && pi --offline --no-session --no-tools -e .pi/extensions/pi-realtime/index.ts --list-models >/tmp/pi-realtime-quality-load.txt 2>&1"
   },
