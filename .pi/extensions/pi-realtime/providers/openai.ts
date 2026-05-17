@@ -7,6 +7,8 @@ import { hasOpenAIRealtimeCredentials, renderContextPacket, toOpenAITool } from 
 
 export { hasOpenAIRealtimeCredentials };
 
+const OPENAI_WS_CONNECT_TIMEOUT_MS = 15_000;
+
 export class OpenAIRealtimeProviderAdapter implements RealtimeProviderAdapter {
 	readonly provider: ProviderKind = "openai";
 	readonly mediaMode = "raw" as const;
@@ -90,7 +92,7 @@ export class OpenAIRealtimeProviderAdapter implements RealtimeProviderAdapter {
 
 	private awaitOpen(rt: OpenAIRealtimeWebSocket): Promise<void> {
 		return new Promise((resolve, reject) => {
-			const timer = setTimeout(() => reject(new Error("Timed out waiting for OpenAI realtime socket to open.")), 15_000);
+			const timer = setTimeout(() => reject(new Error("Timed out waiting for OpenAI realtime socket to open.")), OPENAI_WS_CONNECT_TIMEOUT_MS);
 			rt.socket.addEventListener("open", () => { clearTimeout(timer); resolve(); }, { once: true });
 			rt.socket.addEventListener("error", () => { clearTimeout(timer); reject(new Error("OpenAI realtime socket error before open.")); }, { once: true });
 		});
