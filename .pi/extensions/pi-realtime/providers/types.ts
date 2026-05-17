@@ -1,4 +1,4 @@
-import type { ContextPacket, DisconnectReason, ProviderDeliveryReceipt, ProviderKind, ProviderSessionId, VoiceToolResultRecord, VoiceToolSurface } from "../types";
+import type { ContextPacket, DisconnectReason, NormalizedProviderEvent, ProviderDeliveryReceipt, ProviderKind, ProviderSessionId, VoiceToolResultRecord, VoiceToolSurface } from "../types";
 
 export type ProviderCapabilityPreferences = {
 	preferPassiveContext: boolean;
@@ -23,8 +23,8 @@ export type VoiceResponseRequest = {
 };
 
 export type ProviderEventSink = {
-	onProviderEvent(event: import("../types").NormalizedProviderEvent): void;
-	onProviderAudio?(chunk: { providerSessionId: import("../types").ProviderSessionId; provider: import("../types").ProviderKind; audio: Buffer; providerEventId?: string }): void;
+	onProviderEvent(event: NormalizedProviderEvent): void;
+	onProviderAudio?(chunk: { providerSessionId: ProviderSessionId; provider: ProviderKind; audio: Buffer; providerEventId?: string }): void;
 };
 
 export type RealtimeProviderAdapter = {
