@@ -1,0 +1,8 @@
+node_modules/
+.pi/npm/node_modules/
+.pi/goal-monitor/
+.pi/sessions/
+*.log
+.DS_Store
+references/
+.ai/.pi-goals

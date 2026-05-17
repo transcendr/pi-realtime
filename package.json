@@ -1,0 +1,43 @@
+{
+  "name": "pi-realtime",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pi extension for pi-realtime.",
+  "main": ".pi/extensions/pi-realtime/index.ts",
+  "type": "commonjs",
+  "files": [
+    ".pi/extensions/pi-realtime/**/*.ts",
+    "README.md",
+    "AGENTS.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      ".pi/extensions/pi-realtime/index.ts"
+    ]
+  },
+  "scripts": {
+    "gates:typecheck": "tsc -p tsconfig.json",
+    "gates:validation": "for f in .ai/validation/pi-realtime-*.mjs; do node \"$f\" || exit 1; done",
+    "gates:deslop": "npx --yes d3sl0p typescript --report-min error .pi/extensions/pi-realtime",
+    "scans:deslop": "npx --yes d3sl0p typescript --fail-on none --report-min lead .pi/extensions/pi-realtime",
+    "sentrux:baseline": "sentrux gate --save .pi/extensions/pi-realtime",
+    "gates:structure": "test -f .pi/extensions/pi-realtime/.sentrux/baseline.json || npm run sentrux:baseline && sentrux gate .pi/extensions/pi-realtime && sentrux check .pi/extensions/pi-realtime",
+    "gates:quality": "npm run gates:structure && npm run gates:deslop && npm run gates:typecheck && npm run gates:validation && pi --offline --no-session --no-tools -e .pi/extensions/pi-realtime/index.ts --list-models >/tmp/pi-realtime-quality-load.txt 2>&1"
+  },
+  "keywords": [
+    "pi",
+    "pi-extension",
+    "pi-package",
+    "agent"
+  ],
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.74.0",
+    "@earendil-works/pi-tui": "^0.74.0",
+    "@types/node": "^25.6.2",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "openai": "^6.38.0"
+  }
+}
