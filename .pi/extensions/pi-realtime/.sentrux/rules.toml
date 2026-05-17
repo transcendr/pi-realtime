@@ -1,0 +1,30 @@
+# Sentrux rules for the pi-realtime Pi extension.
+[constraints]
+max_cycles = 0
+max_cc = 20
+no_god_files = true
+
+[[layers]]
+name = "entrypoint"
+paths = ["index.ts"]
+order = 0
+
+[[layers]]
+name = "runtime"
+paths = ["runtime.ts", "commands.ts", "tools.ts", "ui.ts"]
+order = 1
+
+[[layers]]
+name = "application"
+paths = ["service.ts", "store.ts", "events.ts", "view.ts", "model.ts"]
+order = 2
+
+[[layers]]
+name = "domain"
+paths = ["types.ts", "domain/*.ts"]
+order = 3
+
+[[boundaries]]
+from = "domain"
+to = "runtime"
+reason = "Domain types and logic must not depend on Pi runtime APIs."
