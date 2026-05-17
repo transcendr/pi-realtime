@@ -9,6 +9,7 @@ export function hasOpenAIRealtimeCredentials(env: NodeJS.ProcessEnv = process.en
 
 export class OpenAIRealtimeProviderAdapter implements RealtimeProviderAdapter {
 	readonly provider: ProviderKind = "openai";
+	readonly mediaMode = "raw" as const;
 	readonly providerSessionId: ProviderSessionId;
 	private socket: OpenAIRealtimeWebSocket | undefined;
 	private sink: ProviderEventSink | undefined;

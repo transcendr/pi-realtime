@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>pi-realtime WebRTC helper</title>
+	<style>
+		body { margin: 0; background: #080b0f; color: #dce7f3; font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
+		main { max-width: 860px; margin: 48px auto; padding: 24px; border: 1px solid #263241; border-radius: 12px; background: #0d1219; }
+		h1 { margin-top: 0; font-size: 20px; }
+		.status { color: #8bd17c; }
+		.warn { color: #ffd479; }
+		.err { color: #ff8a8a; }
+		pre { white-space: pre-wrap; background: #05070a; border: 1px solid #1d2632; border-radius: 8px; padding: 12px; min-height: 180px; }
+		button { background: #f5c542; color: #111; border: 0; border-radius: 6px; padding: 8px 12px; font-weight: 700; }
+	</style>
+</head>
+<body>
+	<main>
+		<h1>pi-realtime WebRTC helper</h1>
+		<p id="status" class="warn">Starting…</p>
+		<p>This page owns microphone and speaker media so the browser/WebRTC stack can apply echo cancellation, noise suppression, and automatic gain control. Keep it open while using <code>/realtime openai webrtc</code>.</p>
+		<button id="start">Start / reconnect</button>
+		<audio id="remote" autoplay></audio>
+		<pre id="log"></pre>
+	</main>
+	<script type="module" src="/pi-realtime/webrtc/client.js"></script>
+</body>
+</html>

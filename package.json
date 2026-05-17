@@ -7,6 +7,8 @@
   "type": "commonjs",
   "files": [
     ".pi/extensions/pi-realtime/**/*.ts",
+    ".pi/extensions/pi-realtime/**/*.html",
+    ".pi/extensions/pi-realtime/**/*.js",
     "README.md",
     "AGENTS.md",
     "LICENSE"

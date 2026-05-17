@@ -1,0 +1,69 @@
+#!/usr/bin/env node
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+
+const commands = readFileSync(".pi/extensions/pi-realtime/commands.ts", "utf8");
+const service = readFileSync(".pi/extensions/pi-realtime/service.ts", "utf8");
+const providerTypes = readFileSync(".pi/extensions/pi-realtime/providers/types.ts", "utf8");
+const bridge = readFileSync(".pi/extensions/pi-realtime/providers/openai-webrtc-bridge.ts", "utf8");
+const ephemeral = readFileSync(".pi/extensions/pi-realtime/providers/openai-webrtc.ts", "utf8");
+const server = readFileSync(".pi/extensions/pi-realtime/media/webrtc-helper/server.ts", "utf8");
+const protocol = readFileSync(".pi/extensions/pi-realtime/media/webrtc-helper/protocol.ts", "utf8");
+const html = readFileSync(".pi/extensions/pi-realtime/media/webrtc-helper/client.html", "utf8");
+const client = readFileSync(".pi/extensions/pi-realtime/media/webrtc-helper/client.js", "utf8");
+const docs = readFileSync(".ai/docs/realtime-voice/openai-smoke-test.md", "utf8");
+const pkg = readFileSync("package.json", "utf8");
+
+assert.match(commands, /openai webrtc start/);
+assert.match(commands, /openai webrtc start\|stop\|status/);
+assert.match(commands, /rawEchoWarningText/);
+assert.match(service, /startWebRTCHelper/);
+assert.match(service, /stopWebRTCHelper/);
+assert.match(service, /Raw OpenAI audio mode does not provide local acoustic echo cancellation/);
+assert.match(service, /createOpenAIWebRTCBridgeAdapter/);
+assert.match(service, /createWebRTCHelperServer/);
+assert.match(service, /await this\.stopWebRTCHelper\(\)/);
+assert.match(service, /adapter\?\.mediaMode === "webrtc"\) await this\.stopWebRTCHelper\(providerSessionId\)/);
+assert.match(service, /!\[\.\.\.this\.adapters\.values\(\)\]\.some\(\(adapter\) => adapter\.mediaMode === "webrtc"\)/);
+assert.match(providerTypes, /mediaMode\?: "raw" \| "webrtc" \| "fake"/);
+
+assert.match(bridge, /mediaMode = "webrtc"/);
+assert.match(bridge, /WebRTC helper owns microphone capture/);
+assert.match(bridge, /WebRTC helper owns audio playback/);
+assert.match(bridge, /conversation\.item\.create/);
+assert.match(bridge, /function_call_output/);
+
+assert.match(ephemeral, /client\.realtime\.clientSecrets\.create/);
+assert.match(ephemeral, /gpt-4o-mini-transcribe/);
+assert.match(ephemeral, /output_modalities: \["audio"\]/);
+assert.match(ephemeral, /OPENAI_API_KEY/);
+
+assert.match(server, /createServer/);
+assert.match(server, /127\.0\.0\.1/);
+assert.match(server, /client-secret/);
+assert.match(server, /openHelperUrl/);
+assert.match(server, /unregisterSession/);
+assert.match(server, /No WebRTC helper session/);
+assert.match(protocol, /WebRTCHelperInboundEvent/);
+
+assert.match(html, /pi-realtime WebRTC helper/);
+assert.match(client, /echoCancellation:\s*\{\s*ideal:\s*true\s*\}/);
+assert.match(client, /noiseSuppression:\s*\{\s*ideal:\s*true\s*\}/);
+assert.match(client, /autoGainControl:\s*\{\s*ideal:\s*true\s*\}/);
+assert.match(client, /getSettings\(\)/);
+assert.match(client, /browser did not confirm echoCancellation=true/);
+assert.match(client, /cleanupCurrentConnection\(\)/);
+assert.match(client, /track\.stop\(\)/);
+assert.match(client, /remoteAudio\.srcObject = null/);
+assert.match(client, /RTCPeerConnection/);
+assert.match(client, /createDataChannel\("oai-events"\)/);
+assert.match(client, /https:\/\/api\.openai\.com\/v1\/realtime\/calls/);
+assert.doesNotMatch(client, /\/v1\/realtime\?model=/);
+assert.doesNotMatch(client, /beta_api_shape/);
+assert.doesNotMatch(client, /OPENAI_API_KEY/);
+assert.doesNotMatch(html, /OPENAI_API_KEY/);
+
+assert.match(docs, /WebRTC helper speaker-safe smoke/);
+assert.match(docs, /browser page must not receive `OPENAI_API_KEY`/);
+assert.match(pkg, /\.pi\/extensions\/pi-realtime\/\*\*/);
+console.log("PASS pi-realtime OpenAI WebRTC helper probe");

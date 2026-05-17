@@ -4,6 +4,7 @@ import type { ProviderConnectConfig, ProviderEventSink, RealtimeProviderAdapter,
 
 export class FakeRealtimeProviderAdapter implements RealtimeProviderAdapter {
 	readonly provider: ProviderKind = "fake";
+	readonly mediaMode = "fake" as const;
 	readonly providerSessionId: ProviderSessionId;
 	private sink: ProviderEventSink | undefined;
 	private seq = 0;

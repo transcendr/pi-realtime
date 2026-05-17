@@ -30,6 +30,7 @@ export type ProviderEventSink = {
 export type RealtimeProviderAdapter = {
 	readonly provider: ProviderKind;
 	readonly providerSessionId: ProviderSessionId;
+	readonly mediaMode?: "raw" | "webrtc" | "fake";
 	connect(config: ProviderConnectConfig, sink: ProviderEventSink): Promise<void>;
 	disconnect(reason: DisconnectReason): Promise<void>;
 	updateContext(packet: ContextPacket): Promise<ProviderDeliveryReceipt>;

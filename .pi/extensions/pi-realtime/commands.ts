@@ -21,7 +21,7 @@ export async function handleRealtimeCommand(args: string, ctx: ExtensionCommandC
 }
 
 export function realtimeCompletions(): string[] {
-	return ["status", "start --provider fake", "start --provider openai", "text", "mic start", "mic stop", "audio start", "audio stop", "openai text", "openai mic start", "openai mic stop", "openai audio start", "openai audio stop", "fake transcript", "fake tool pi_state_snapshot {}", "fake tool pi_send_instruction {\"instruction\":\"...\"}", "stop", "primary", "citations", "help"];
+	return ["status", "start --provider fake", "start --provider openai", "text", "mic start", "mic stop", "audio start", "audio stop", "openai text", "openai mic start", "openai mic stop", "openai audio start", "openai audio stop", "openai webrtc start", "openai webrtc stop", "openai webrtc status", "fake transcript", "fake tool pi_state_snapshot {}", "fake tool pi_send_instruction {\"instruction\":\"...\"}", "stop", "primary", "citations", "help"];
 }
 
 async function start(tokens: string[], ctx: ExtensionCommandContext, service: Service): Promise<void> {
@@ -32,6 +32,7 @@ async function start(tokens: string[], ctx: ExtensionCommandContext, service: Se
 	try {
 		const providerSessionId = await service.startSession({ provider, model, personaId, primary }, ctx);
 		notify(ctx, `Started ${provider} realtime session ${providerSessionId} (${model}).${primary ? "" : " Not primary."}`);
+		if (provider === "openai") notify(ctx, service.rawEchoWarningText(), "warning");
 	} catch (error) {
 		notify(ctx, error instanceof Error ? error.message : String(error), "warning");
 	}
@@ -118,7 +119,26 @@ async function openai(tokens: string[], ctx: ExtensionCommandContext, service: S
 	if (subcommand === "text") return text(["--session", openaiSession.providerSessionId, ...rest], ctx, service);
 	if (subcommand === "mic") return mic([...rest, "--session", openaiSession.providerSessionId], ctx, service);
 	if (subcommand === "audio") return audio([...rest, "--session", openaiSession.providerSessionId], ctx, service);
-	return notify(ctx, "Usage: /realtime openai text <message> | openai mic start|stop|status | openai audio start|stop|status", "warning");
+	if (subcommand === "webrtc") return webrtc(rest, ctx, service, openaiSession.providerSessionId);
+	return notify(ctx, "Usage: /realtime openai text <message> | openai mic start|stop|status | openai audio start|stop|status | openai webrtc start|stop|status", "warning");
+}
+
+async function webrtc(tokens: string[], ctx: ExtensionCommandContext, service: Service, providerSessionId: ProviderSessionId): Promise<void> {
+	const [subcommand = "status"] = tokens;
+	try {
+		if (subcommand === "status") return notify(ctx, service.webRTCHelperStatus());
+		if (subcommand === "start") {
+			const url = await service.startWebRTCHelper(providerSessionId, ctx);
+			return notify(ctx, `Started OpenAI WebRTC helper for ${providerSessionId}. Opened ${url}`);
+		}
+		if (subcommand === "stop") {
+			await service.stopWebRTCHelper(providerSessionId);
+			return notify(ctx, `Stopped OpenAI WebRTC helper for ${providerSessionId}.`);
+		}
+	} catch (error) {
+		return notify(ctx, error instanceof Error ? error.message : String(error), "warning");
+	}
+	return notify(ctx, "Usage: /realtime openai webrtc start|stop|status", "warning");
 }
 
 function latestActiveOpenAISession(service: Service) {
@@ -190,6 +210,7 @@ function helpText(): string {
 		"/realtime openai text <message> — send text to the active OpenAI session",
 		"/realtime openai mic start|stop|status — stream local microphone to the active OpenAI session",
 		"/realtime openai audio start|stop|status — play OpenAI audio responses",
+		"/realtime openai webrtc start|stop|status — use localhost browser/WebRTC media with echo cancellation",
 		"/realtime fake transcript <text>",
 		"/realtime fake tool <tool_name> <json>",
 		"/realtime stop [--session <id>]",

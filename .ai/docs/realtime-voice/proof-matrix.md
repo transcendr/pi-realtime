@@ -4,7 +4,7 @@ Date: 2026-05-17
 
 ## Scope
 
-This matrix covers the provider-neutral and fake/no-network realtime voice system through goal 5/6. Real OpenAI/Gemini network paths remain deferred.
+This matrix covers the provider-neutral realtime voice system, fake/no-network provider, raw OpenAI WebSocket path, and opt-in OpenAI WebRTC helper scaffolding. Real OpenAI/Gemini network paths remain API-key guarded and are not required for offline gates.
 
 ## Artifacts
 
@@ -18,7 +18,8 @@ This matrix covers the provider-neutral and fake/no-network realtime voice syste
 | Fake provider | `.pi/extensions/pi-realtime/providers/fake.ts` |
 | Lifecycle/context hardening | `.pi/extensions/pi-realtime/runtime.ts`, `.pi/extensions/pi-realtime/context.ts` |
 | Commands | `.pi/extensions/pi-realtime/commands.ts` |
-| OpenAI adapter | `.pi/extensions/pi-realtime/providers/openai.ts`, `.ai/docs/realtime-voice/openai-smoke-test.md` |
+| OpenAI raw adapter | `.pi/extensions/pi-realtime/providers/openai.ts`, `.pi/extensions/pi-realtime/audio.ts`, `.pi/extensions/pi-realtime/playback.ts`, `.ai/docs/realtime-voice/openai-smoke-test.md` |
+| OpenAI WebRTC helper | `.pi/extensions/pi-realtime/providers/openai-webrtc.ts`, `.pi/extensions/pi-realtime/providers/openai-webrtc-bridge.ts`, `.pi/extensions/pi-realtime/media/webrtc-helper/*`, `.ai/docs/realtime-voice/webrtc-helper-goal-plan.md` |
 
 ## Deterministic probes
 
@@ -33,6 +34,9 @@ This matrix covers the provider-neutral and fake/no-network realtime voice syste
 | `.ai/validation/pi-realtime-simultaneous-litmus-probe.mjs` | Simultaneous-provider isolation for sessions, tool calls, and context revisions |
 | `.ai/validation/pi-realtime-citation-deck-probe.mjs` | Pinotator citation deck parsing, ref resolution, revision changes |
 | `.ai/validation/pi-realtime-openai-adapter-probe.mjs` | OpenAI adapter boundary, API-key guard, context/tool/function-call/result smoke contract, SDK import isolation |
+| `.ai/validation/pi-realtime-openai-mic-probe.mjs` | Raw ffmpeg mic capture, PCM chunking, Realtime audio append contract, shutdown cleanup |
+| `.ai/validation/pi-realtime-openai-playback-probe.mjs` | Raw ffplay audio playback, Realtime output audio event handling, transcript preservation, shutdown cleanup |
+| `.ai/validation/pi-realtime-openai-webrtc-helper-probe.mjs` | WebRTC helper commands, raw-mode AEC warning, browser helper assets, browser-safe auth shape, helper lifecycle, no API-key exposure in client assets |
 
 ## Commands run
 
@@ -42,7 +46,9 @@ This matrix covers the provider-neutral and fake/no-network realtime voice syste
 | `npm run gates:quality` | pass |
 | `node ~/.codex/skills/pi-extension-dev/scripts/audit-pi-extension.mjs .` | pass; TOON decoded |
 | `npm run scans:deslop` | pass, 0 advisory findings |
+| `npm run gates:typecheck` | pass after WebRTC helper implementation |
+| `npm run gates:validation` | pass after WebRTC helper implementation |
 
 ## Remaining planned proof
 
-Goal 6 added OpenAI-specific smoke-test documentation and kept all fake/offline gates passing. Real provider live validation remains API-key guarded and must not make normal quality gates depend on network availability.
+OpenAI raw text/mic/audio live validation is API-key guarded and manual. The WebRTC helper has deterministic offline coverage for structure, commands, auth boundary, and bridge shape; live browser/WebRTC smoke remains manual because it depends on browser permissions, OpenAI network access, and local audio hardware.

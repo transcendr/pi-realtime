@@ -44,9 +44,9 @@ Expected:
 - The adapter sends context packets via `conversation.item.create` system messages.
 - `/realtime openai text ...` sends a user text item and triggers `response.create`.
 
-## Microphone + audio playback smoke
+## Raw microphone + audio playback smoke
 
-This streams the macOS default microphone via `ffmpeg`/AVFoundation as 24 kHz mono PCM16 input and plays OpenAI output audio through `ffplay`. Visible transcript notifications remain enabled.
+This streams the macOS default microphone via `ffmpeg`/AVFoundation as 24 kHz mono PCM16 input and plays OpenAI output audio through `ffplay`. Visible transcript notifications remain enabled. This raw mode does **not** provide local acoustic echo cancellation; use headphones.
 
 ```text
 /realtime openai audio start
@@ -55,6 +55,7 @@ This streams the macOS default microphone via `ffmpeg`/AVFoundation as 24 kHz mo
 
 Speak a short sentence, then pause for server VAD. Expected:
 
+- Pi warns that raw OpenAI audio has no local acoustic echo cancellation and suggests headphones or `/realtime openai webrtc start`.
 - You hear the assistant response.
 - Pi also shows a visible `Realtime openai: ...` transcript notification.
 - Input audio transcription is enabled with `gpt-4o-mini-transcribe` so Pi can store/debug what the microphone path heard. This is an extra Realtime session feature in addition to the primary `gpt-realtime-2` audio understanding.
@@ -67,6 +68,28 @@ Stop capture/playback when done:
 ```
 
 If macOS denies microphone access or `ffmpeg` cannot open AVFoundation device `:0`, Pi shows a microphone warning. Grant Terminal/Warp microphone permission in macOS settings and retry. If `ffplay` cannot open the output device, Pi shows an audio playback warning.
+
+## WebRTC helper speaker-safe smoke
+
+This opens a localhost browser helper page that owns microphone and speaker media through browser/WebRTC audio processing with echo cancellation, noise suppression, and automatic gain control. It uses an ephemeral OpenAI Realtime client secret; the browser page must not receive `OPENAI_API_KEY`.
+
+```text
+/realtime openai webrtc start
+```
+
+Expected:
+
+- Pi opens a URL like `http://127.0.0.1:<port>/pi-realtime/openai/<sessionId>`.
+- The browser asks for microphone permission.
+- The helper page connects to OpenAI Realtime over WebRTC using the GA `/v1/realtime/calls` SDP exchange, not the retired beta `/v1/realtime?model=...` SDP shape.
+- You can use MacBook speakers/mic with browser AEC instead of the raw `ffmpeg`/`ffplay` path.
+- Pi still receives transcript/tool/error events through the provider-neutral service bridge.
+
+Stop helper mode when done:
+
+```text
+/realtime openai webrtc stop
+```
 
 ## Function-call smoke prompt
 

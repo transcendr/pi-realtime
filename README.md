@@ -2,7 +2,7 @@
 
 Pi extension project for realtime voice control-plane interfaces to Pi agents.
 
-The extension is being built around a provider-neutral core: realtime voice providers such as OpenAI Realtime and Google Gemini Live should adapt to one shared Pi control-plane model instead of embedding Pi logic in provider-specific code. The current implementation includes the provider-neutral foundation, a fake/no-network provider for deterministic development, and an OpenAI Realtime prototype with text, microphone input, and audio playback paths.
+The extension is being built around a provider-neutral core: realtime voice providers such as OpenAI Realtime and Google Gemini Live should adapt to one shared Pi control-plane model instead of embedding Pi logic in provider-specific code. The current implementation includes the provider-neutral foundation, a fake/no-network provider for deterministic development, and an OpenAI Realtime prototype with text, raw microphone/audio paths, and an opt-in browser/WebRTC helper for speaker-safe media.
 
 ## Project layout
 
@@ -13,6 +13,7 @@ The extension is being built around a provider-neutral core: realtime voice prov
   commands.ts              # /realtime parser
   audio.ts                 # ffmpeg/AVFoundation microphone capture
   playback.ts              # ffplay PCM response playback
+  media/webrtc-helper/     # localhost browser/WebRTC helper for AEC media
   control-plane.ts         # Pi instruction sink and citation observation bridge
   events.ts                # durable event constructors/replay helpers
   store.ts                 # branch-aware session custom-entry replay
@@ -25,6 +26,7 @@ The extension is being built around a provider-neutral core: realtime voice prov
     types.ts               # normalized provider adapter contract
     fake.ts                # deterministic no-network provider adapter
     openai.ts              # OpenAI Realtime WebSocket adapter
+    openai-webrtc*.ts      # OpenAI WebRTC helper auth/bridge adapters
   .sentrux/rules.toml      # structural constraints
 .ai/validation/
   pi-realtime-*.mjs        # deterministic probes
@@ -68,6 +70,9 @@ pi --offline --no-session --no-tools -e .pi/extensions/pi-realtime/index.ts --li
 /realtime openai mic stop
 /realtime openai audio start
 /realtime openai audio stop
+/realtime openai webrtc start
+/realtime openai webrtc stop
+/realtime openai webrtc status
 /realtime mic status
 /realtime audio status
 /realtime fake transcript <text>
@@ -79,12 +84,13 @@ pi --offline --no-session --no-tools -e .pi/extensions/pi-realtime/index.ts --li
 
 The fake provider exercises transcript events, context packet delivery, direct voice tool calls, Pinotator citation lookup shape, voice-derived Pi instruction submission, provider-scoped tool result routing, and shutdown cleanup without API keys, microphone access, or network.
 
-The OpenAI adapter currently covers text/context/tool-call, microphone input, and audio playback. It is guarded by `OPENAI_API_KEY`; use `/realtime openai text <message>` for text smoke tests, `/realtime openai mic start` to stream the macOS default microphone through `ffmpeg`/AVFoundation, and `/realtime openai audio start` to play model responses through `ffplay`. Visible transcript notifications remain enabled while audio is playing.
+The OpenAI adapter currently covers text/context/tool-call, raw microphone input, raw audio playback, and opt-in WebRTC helper media. It is guarded by `OPENAI_API_KEY`; use `/realtime openai text <message>` for text smoke tests. Raw `/realtime openai mic start` plus `/realtime openai audio start` uses `ffmpeg`/`ffplay` and does not provide local acoustic echo cancellation, so use headphones. For speaker-safe testing, use `/realtime openai webrtc start` to open the localhost browser helper with WebRTC echo cancellation/noise suppression/AGC. Visible transcript notifications remain enabled.
 
 ## Planning docs
 
 - `.ai/docs/realtime-voice/initial-brief.md`
 - `.ai/docs/realtime-voice/architecture.md`
 - `.ai/docs/realtime-voice/input-injection-decision.md`
+- `.ai/docs/realtime-voice/webrtc-helper-goal-plan.md`
 
 Future provider work should keep OpenAI/Gemini SDK imports isolated to `providers/openai.ts` and `providers/gemini.ts`.

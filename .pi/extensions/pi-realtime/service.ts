@@ -3,10 +3,14 @@ import { createMacOSFfmpegAudioCapture, type AudioCaptureController } from "./au
 import { contextPacketSent, nextProviderSessionId, primaryChanged, providerEventObserved, sessionStarted, sessionStopped, voiceToolCallReceived, voiceToolResultSent } from "./events";
 import { createFfplayAudioPlayback, type AudioPlaybackController } from "./playback";
 import { defaultVoiceToolSurface, voiceSystemPrompt } from "./prompt";
+import { createWebRTCHelperServer, openHelperUrl } from "./media/webrtc-helper/server";
+import type { WebRTCHelperServer } from "./media/webrtc-helper/protocol";
 import { buildCitationPacket, buildStatePacket, buildToolSurfacePacket, nextContextRevision } from "./state-packets";
 import type { ControlPlane } from "./control-plane";
 import { createFakeRealtimeProvider, type FakeRealtimeProviderAdapter } from "./providers/fake";
 import { createOpenAIRealtimeProvider, hasOpenAIRealtimeCredentials } from "./providers/openai";
+import { createOpenAIWebRTCBridgeAdapter } from "./providers/openai-webrtc-bridge";
+import { createOpenAIWebRTCClientSecret, hasOpenAIWebRTCCredentials } from "./providers/openai-webrtc";
 import type { ProviderEventSink, RealtimeProviderAdapter } from "./providers/types";
 import type { CitationDeck, ContextPacket, NormalizedProviderEvent, ProviderKind, ProviderSessionId, RealtimeState, VoiceInstructionInput, VoiceToolCallRecord, VoiceToolName, VoiceToolResultRecord, VoiceToolSurface } from "./types";
 import type { Store } from "./store";
@@ -31,6 +35,10 @@ export type Service = {
 	startAudioPlayback(providerSessionId: ProviderSessionId): Promise<void>;
 	stopAudioPlayback(providerSessionId?: ProviderSessionId): Promise<void>;
 	audioPlaybackStatus(): string;
+	startWebRTCHelper(providerSessionId: ProviderSessionId, ctx: ExtensionContext): Promise<string>;
+	stopWebRTCHelper(providerSessionId?: ProviderSessionId): Promise<void>;
+	webRTCHelperStatus(): string;
+	rawEchoWarningText(): string;
 	simulateFakeTranscript(providerSessionId: ProviderSessionId, text: string, final?: boolean): void;
 	simulateFakeToolCall(providerSessionId: ProviderSessionId, name: VoiceToolName, args?: Record<string, unknown>): Promise<string>;
 	shutdown(): Promise<void>;
@@ -47,6 +55,8 @@ class RealtimeService implements Service {
 	private readonly fakeAdapters = new Map<ProviderSessionId, FakeRealtimeProviderAdapter>();
 	private readonly audioCaptures = new Map<ProviderSessionId, AudioCaptureController>();
 	private readonly audioPlaybacks = new Map<ProviderSessionId, AudioPlaybackController>();
+	private readonly rawEchoWarnings = new Set<ProviderSessionId>();
+	private readonly webrtcHelper: WebRTCHelperServer = createWebRTCHelperServer();
 	private readonly providerSink: ProviderEventSink = { onProviderEvent: (event) => void this.handleProviderEvent(event), onProviderAudio: (chunk) => this.handleProviderAudio(chunk) };
 
 	constructor(private readonly store: Store, private readonly controlPlane: ControlPlane) {}
@@ -69,6 +79,7 @@ class RealtimeService implements Service {
 	async startMicrophone(providerSessionId: ProviderSessionId): Promise<void> {
 		const adapter = this.adapters.get(providerSessionId);
 		if (!adapter) throw new Error(`No live provider adapter for ${providerSessionId}`);
+		this.warnIfRawEchoRisk(providerSessionId, adapter);
 		if (this.audioCaptures.has(providerSessionId)) throw new Error(`Microphone is already running for ${providerSessionId}`);
 		const capture = createMacOSFfmpegAudioCapture();
 		this.audioCaptures.set(providerSessionId, capture);
@@ -93,6 +104,7 @@ class RealtimeService implements Service {
 	async startAudioPlayback(providerSessionId: ProviderSessionId): Promise<void> {
 		const adapter = this.adapters.get(providerSessionId);
 		if (!adapter) throw new Error(`No live provider adapter for ${providerSessionId}`);
+		this.warnIfRawEchoRisk(providerSessionId, adapter);
 		if (this.audioPlaybacks.has(providerSessionId)) return;
 		const playback = createFfplayAudioPlayback();
 		this.audioPlaybacks.set(providerSessionId, playback);
@@ -116,6 +128,43 @@ class RealtimeService implements Service {
 		return ["audio playback:", ...[...this.audioPlaybacks].map(([id, playback]) => `- ${id} ${playback.status}`)].join("\n");
 	}
 
+	async startWebRTCHelper(providerSessionId: ProviderSessionId, ctx: ExtensionContext): Promise<string> {
+		const session = this.store.state().sessions.get(providerSessionId);
+		if (!session || session.provider !== "openai") throw new Error(`No OpenAI realtime session found for ${providerSessionId}`);
+		if (!hasOpenAIWebRTCCredentials()) throw new Error("OPENAI_API_KEY is required to start an OpenAI WebRTC helper session.");
+		await this.stopMicrophone(providerSessionId);
+		await this.stopAudioPlayback(providerSessionId);
+		await this.adapters.get(providerSessionId)?.disconnect("user");
+		await this.webrtcHelper.start();
+		const adapter = createOpenAIWebRTCBridgeAdapter(providerSessionId, this.webrtcHelper, () => createOpenAIWebRTCClientSecret({ model: session.model, instructions: systemPromptFor(this.surface), toolSurface: this.surface }));
+		this.adapters.set(providerSessionId, adapter);
+		const packets = this.buildPackets(ctx, providerSessionId);
+		await adapter.connect({ providerSessionId, provider: "openai", model: session.model, personaId: session.personaId, systemPrompt: systemPromptFor(this.surface), toolSurface: this.surface, initialContext: packets[0], capabilities: { preferPassiveContext: false, preferSemanticVad: true } }, this.providerSink);
+		for (const packet of packets.slice(1)) this.store.append(contextPacketSent(providerSessionId, packet, await adapter.updateContext(packet)));
+		const url = this.webrtcHelper.urlFor(providerSessionId);
+		openHelperUrl(url);
+		return url;
+	}
+
+	async stopWebRTCHelper(providerSessionId?: ProviderSessionId): Promise<void> {
+		const ids = providerSessionId ? [providerSessionId] : [...this.adapters].filter(([, adapter]) => adapter.mediaMode === "webrtc").map(([id]) => id);
+		for (const id of ids) {
+			const adapter = this.adapters.get(id);
+			if (adapter?.mediaMode !== "webrtc") continue;
+			await adapter.disconnect("user");
+			this.adapters.delete(id);
+		}
+		if (!providerSessionId || ![...this.adapters.values()].some((adapter) => adapter.mediaMode === "webrtc")) await this.webrtcHelper.stop();
+	}
+
+	webRTCHelperStatus(): string {
+		return this.webrtcHelper.status();
+	}
+
+	rawEchoWarningText(): string {
+		return rawEchoWarningText();
+	}
+
 	async startSession(input: { provider: ProviderKind; model: string; personaId?: string; primary?: boolean }, ctx: ExtensionContext): Promise<ProviderSessionId> {
 		const providerSessionId = nextProviderSessionId(input.provider);
 		this.store.append(sessionStarted({ providerSessionId, provider: input.provider, model: input.model, personaId: input.personaId ?? "default" }));
@@ -130,7 +179,9 @@ class RealtimeService implements Service {
 	async stopSession(providerSessionId: ProviderSessionId, reason = "user"): Promise<void> {
 		await this.stopMicrophone(providerSessionId);
 		await this.stopAudioPlayback(providerSessionId);
-		await this.adapters.get(providerSessionId)?.disconnect(reason === "shutdown" ? "shutdown" : "user");
+		const adapter = this.adapters.get(providerSessionId);
+		if (adapter?.mediaMode === "webrtc") await this.stopWebRTCHelper(providerSessionId);
+		else await adapter?.disconnect(reason === "shutdown" ? "shutdown" : "user");
 		this.adapters.delete(providerSessionId);
 		this.fakeAdapters.delete(providerSessionId);
 		this.store.append(sessionStopped(providerSessionId, reason));
@@ -160,6 +211,7 @@ class RealtimeService implements Service {
 	async shutdown(): Promise<void> {
 		await this.stopMicrophone();
 		await this.stopAudioPlayback();
+		await this.stopWebRTCHelper();
 		for (const session of this.store.state().sessions.values()) if (session.status === "active" || session.status === "starting") await this.stopSession(session.providerSessionId, "shutdown");
 		this.currentCtx = undefined;
 	}
@@ -198,6 +250,12 @@ class RealtimeService implements Service {
 		if (event.type === "assistant_transcript" && event.final) notify(`Realtime ${event.provider}: ${event.text}`);
 		else if (event.type === "tool_call") notify(`Realtime ${event.provider} tool call: ${event.call.name}`);
 		else if (event.type === "error") notify(`Realtime ${event.provider} error: ${event.message}`, "warning");
+	}
+
+	private warnIfRawEchoRisk(providerSessionId: ProviderSessionId, adapter: RealtimeProviderAdapter): void {
+		if (adapter.provider !== "openai" || adapter.mediaMode !== "raw" || this.rawEchoWarnings.has(providerSessionId)) return;
+		this.rawEchoWarnings.add(providerSessionId);
+		this.currentCtx?.ui.notify(rawEchoWarningText(), "warning");
 	}
 
 	private handleMicrophoneError(providerSessionId: ProviderSessionId, error: Error): void {
@@ -253,6 +311,10 @@ export function defaultModelFor(provider: ProviderKind): string {
 
 export function systemPromptFor(surface: VoiceToolSurface = defaultVoiceToolSurface()): string {
 	return voiceSystemPrompt(surface);
+}
+
+export function rawEchoWarningText(): string {
+	return "Raw OpenAI audio mode does not provide local acoustic echo cancellation. Use headphones, or run /realtime openai webrtc start for speaker-safe browser/WebRTC audio.";
 }
 
 function status(state: RealtimeState): string {
