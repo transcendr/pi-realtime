@@ -231,8 +231,10 @@ class RealtimeService implements Service {
 	}
 
 	private async sendInstructionFromTool(call: VoiceToolCallRecord, ctx: ExtensionContext): Promise<string> {
+		const instructionText = stringArg(call.arguments.instruction) || stringArg(call.arguments.text);
+		if (!instructionText) return "Rejected pi_send_instruction: missing required non-empty instruction text. Ask the user for clarification or call pi_send_instruction again with the exact Pi action requested.";
 		const deck = this.controlPlane.observeCitations(ctx);
-		await this.controlPlane.instructionSink.sendInstruction({ instructionId: call.voiceToolCallId, provider: call.provider, providerSessionId: call.providerSessionId, voiceToolCallId: call.voiceToolCallId, providerToolCallId: call.providerToolCallId, target: this.controlPlane.currentTarget(ctx), urgency: call.arguments.urgency === "interrupt" ? "interrupt" : "normal", instructionText: stringArg(call.arguments.instruction) || stringArg(call.arguments.text) || "Voice provider requested Pi action without instruction text.", userUtteranceSummary: stringArg(call.arguments.userUtteranceSummary), citedCitationIds: stringArrayArg(call.arguments.citedCitationIds), citationDeckRevision: deck.revision });
+		await this.controlPlane.instructionSink.sendInstruction({ instructionId: call.voiceToolCallId, provider: call.provider, providerSessionId: call.providerSessionId, voiceToolCallId: call.voiceToolCallId, providerToolCallId: call.providerToolCallId, target: this.controlPlane.currentTarget(ctx), urgency: call.arguments.urgency === "interrupt" ? "interrupt" : "normal", instructionText, userUtteranceSummary: stringArg(call.arguments.userUtteranceSummary), citedCitationIds: stringArrayArg(call.arguments.citedCitationIds), citationDeckRevision: deck.revision });
 		return "Submitted instruction to Pi.";
 	}
 

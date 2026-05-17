@@ -17,6 +17,8 @@ assert.match(serviceSource, /createFakeRealtimeProvider/);
 assert.match(serviceSource, /executeDirectTool/);
 assert.match(serviceSource, /pi_send_instruction/);
 assert.match(serviceSource, /pinotator_citation_resolve/);
+assert.match(serviceSource, /missing required non-empty instruction text/);
+assert.doesNotMatch(serviceSource, /Voice provider requested Pi action without instruction text/);
 assert.match(serviceSource, /\.disconnect\(/);
 assert.match(commandsSource, /fake transcript/);
 assert.match(commandsSource, /fake tool/);
