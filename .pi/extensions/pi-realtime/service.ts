@@ -3,8 +3,7 @@ import { createMacOSFfmpegAudioCapture, type AudioCaptureController } from "./au
 import { contextPacketSent, nextProviderSessionId, primaryChanged, providerEventObserved, sessionStarted, sessionStopped, usageObserved, voiceToolCallReceived, voiceToolResultSent } from "./events";
 import { createFfplayAudioPlayback, type AudioPlaybackController } from "./playback";
 import { defaultVoiceToolSurface, voiceSystemPrompt } from "./prompt";
-import { createWebRTCHelperServer, openHelperUrl } from "./media/webrtc-helper/server";
-import type { WebRTCHelperServer } from "./media/webrtc-helper/protocol";
+import { createWebRTCHelperServer, openHelperUrl, type WebRTCHelperServer } from "./media/webrtc-helper/server";
 import { buildCitationPacket, buildStatePacket, buildToolSurfacePacket, nextContextRevision } from "./state-packets";
 import type { ControlPlane } from "./control-plane";
 import { createFakeRealtimeProvider, type FakeRealtimeProviderAdapter } from "./providers/fake";

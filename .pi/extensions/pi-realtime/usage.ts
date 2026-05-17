@@ -1,31 +1,6 @@
-import type { ProviderKind, ProviderSessionId } from "./types";
+import type { ProviderKind, ProviderSessionId, UsageBreakdown, UsageObservation, UsageSource } from "./types";
 
-export type UsageSource = "response" | "input_transcription";
-
-export type UsageBreakdown = {
-	textTokens: number;
-	audioTokens: number;
-	imageTokens: number;
-	cachedTextTokens: number;
-	cachedAudioTokens: number;
-	cachedImageTokens: number;
-};
-
-export type UsageObservation = {
-	providerSessionId: ProviderSessionId;
-	provider: ProviderKind;
-	model: string;
-	source: UsageSource;
-	providerEventId?: string;
-	responseId?: string;
-	itemId?: string;
-	at: number;
-	input: UsageBreakdown;
-	output: UsageBreakdown;
-	totalTokens: number;
-	estimatedCostUsd: number;
-	costExcludedReason?: string;
-};
+export type { UsageBreakdown, UsageObservation, UsageSource };
 
 export type UsageSummary = {
 	providerSessionId?: ProviderSessionId;

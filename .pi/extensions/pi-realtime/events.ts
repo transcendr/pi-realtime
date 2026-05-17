@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { EVENT_VERSION, type CitationDeck, type CitationDeckSummary, type ContextPacket, type ContextPacketSummary, type NormalizedProviderEvent, type ProviderDeliveryReceipt, type ProviderKind, type ProviderSessionId, type RealtimeConfig, type RealtimeEvent, type RealtimeHistorySummary, type RealtimeState, type VoiceInstructionInput, type VoiceInstructionReceipt, type VoiceSessionRecord, type VoiceToolCallRecord, type VoiceToolResultRecord } from "./types";
-import type { UsageObservation } from "./usage";
+import { EVENT_VERSION, type CitationDeck, type CitationDeckSummary, type ContextPacket, type ContextPacketSummary, type NormalizedProviderEvent, type ProviderDeliveryReceipt, type ProviderKind, type ProviderSessionId, type RealtimeConfig, type RealtimeEvent, type RealtimeHistorySummary, type RealtimeState, type UsageObservation, type VoiceInstructionInput, type VoiceInstructionReceipt, type VoiceSessionRecord, type VoiceToolCallRecord, type VoiceToolResultRecord } from "./types";
 
 export const defaultConfig: RealtimeConfig = { primaryProviderSessionId: null, defaultProvider: "fake", defaultPersonaId: "default" };
 
@@ -149,6 +148,6 @@ function historyRow(event: RealtimeEvent): RealtimeHistorySummary {
 	return providerSessionId ? { kind: event.kind, eventId: event.eventId, at: event.at, providerSessionId } : { kind: event.kind, eventId: event.eventId, at: event.at };
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
+export function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
 }

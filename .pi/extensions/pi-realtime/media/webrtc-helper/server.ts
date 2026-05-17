@@ -5,6 +5,8 @@ import { join } from "node:path";
 import type { NormalizedProviderEvent, ProviderSessionId, ProviderKind } from "../../types";
 import type { WebRTCHelperInboundEvent, WebRTCHelperOutboundEvent, WebRTCHelperRegistrationConfig, WebRTCHelperServer, WebRTCHelperSessionConfig, WebRTCHelperSink } from "./protocol";
 
+export type { WebRTCHelperServer } from "./protocol";
+
 const HOST = "127.0.0.1";
 const CLIENT_HTML = ".pi/extensions/pi-realtime/media/webrtc-helper/client.html";
 const CLIENT_JS = ".pi/extensions/pi-realtime/media/webrtc-helper/client.js";

@@ -9,7 +9,7 @@ const events = readFileSync(".pi/extensions/pi-realtime/events.ts", "utf8");
 const service = readFileSync(".pi/extensions/pi-realtime/service.ts", "utf8");
 const commands = readFileSync(".pi/extensions/pi-realtime/commands.ts", "utf8");
 
-assert.match(usage, /export type UsageObservation/);
+assert.match(usage, /UsageObservation/);
 assert.match(usage, /gpt-realtime-2/);
 assert.match(usage, /audio: \{ input: 32, cachedInput: 0\.4, output: 64 \}/);
 assert.match(usage, /text: \{ input: 4, cachedInput: 0\.4, output: 24 \}/);

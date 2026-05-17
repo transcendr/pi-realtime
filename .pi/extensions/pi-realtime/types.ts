@@ -1,5 +1,3 @@
-import type { UsageObservation } from "./usage";
-
 export const EVENT_VERSION = 1;
 export const CUSTOM_EVENT_TYPE = "pi-realtime.events.v1";
 export const CUSTOM_MESSAGE_TYPE = "pi-realtime.context";
@@ -41,6 +39,33 @@ export type ProviderEventBase = {
 	providerEventId?: string;
 	localSeq: number;
 	at: number;
+};
+
+export type UsageSource = "response" | "input_transcription";
+
+export type UsageBreakdown = {
+	textTokens: number;
+	audioTokens: number;
+	imageTokens: number;
+	cachedTextTokens: number;
+	cachedAudioTokens: number;
+	cachedImageTokens: number;
+};
+
+export type UsageObservation = {
+	providerSessionId: ProviderSessionId;
+	provider: ProviderKind;
+	model: string;
+	source: UsageSource;
+	providerEventId?: string;
+	responseId?: string;
+	itemId?: string;
+	at: number;
+	input: UsageBreakdown;
+	output: UsageBreakdown;
+	totalTokens: number;
+	estimatedCostUsd: number;
+	costExcludedReason?: string;
 };
 
 export type NormalizedProviderEvent =

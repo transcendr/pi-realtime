@@ -1,5 +1,6 @@
 import type { ContextEvent } from "@earendil-works/pi-coding-agent";
 import { CUSTOM_MESSAGE_TYPE, type RealtimeState } from "./types";
+import { isRecord } from "./events";
 
 export function filterRealtimeContextMessages(event: ContextEvent, state: RealtimeState): { messages: ContextEvent["messages"] } | undefined {
 	const messages = event.messages.filter((message) => !isStaleRealtimeMessage(message, state));
@@ -19,8 +20,4 @@ function isStaleRealtimeMessage(message: unknown, state: RealtimeState): boolean
 function isActiveProviderSession(state: RealtimeState, providerSessionId: string): boolean {
 	const session = state.sessions.get(providerSessionId);
 	return session?.status === "active" || session?.status === "starting";
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null;
 }
