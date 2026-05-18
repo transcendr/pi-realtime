@@ -5,8 +5,8 @@ import { voiceSystemPrompt } from "../prompt";
 import type { ContextPacket, ProviderKind, ProviderMediaMode, ProviderSessionId, ProviderPreferences, VoiceSessionRecord, VoiceToolSurface } from "../types";
 import { createFakeRealtimeProvider } from "./fake";
 import { createOpenAIRealtimeProvider, hasOpenAIRealtimeCredentials } from "./openai";
-import { createOpenAIWebRTCBridgeAdapter } from "./openai-webrtc-bridge";
-import { createOpenAIWebRTCClientSecret, hasOpenAIWebRTCCredentials } from "./openai-webrtc";
+import { createOpenAIWebRTCBridgeAdapter } from "./openai/webrtc-bridge";
+import { createOpenAIWebRTCClientSecret, hasOpenAIWebRTCCredentials } from "./openai/webrtc";
 import type { ProviderEventSink, RealtimeProviderAdapter } from "./types";
 
 export type ProviderAdapterInput = {

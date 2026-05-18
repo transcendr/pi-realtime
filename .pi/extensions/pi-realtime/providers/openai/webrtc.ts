@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import type { ClientSecretCreateResponse } from "openai/resources/realtime/client-secrets";
-import type { VoiceToolSurface } from "../types";
+import type { VoiceToolSurface } from "../../types";
 import { hasOpenAIRealtimeCredentials, toOpenAITool } from "./shared";
 
 /** @deprecated Use hasOpenAIRealtimeCredentials from ./shared instead. */

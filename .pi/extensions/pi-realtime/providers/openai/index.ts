@@ -1,8 +1,8 @@
 import { OpenAIRealtimeWebSocket } from "openai/realtime/websocket";
 import type { RealtimeClientEvent, RealtimeServerEvent } from "openai/resources/realtime/realtime";
-import type { ContextPacket, DisconnectReason, NormalizedProviderEvent, ProviderDeliveryReceipt, ProviderKind, ProviderSessionId, VoiceToolName, VoiceToolResultRecord, VoiceToolSurface } from "../types";
-import type { ProviderConnectConfig, ProviderEventSink, RealtimeProviderAdapter, VoiceResponseRequest } from "./types";
-import { usageFromOpenAIInputTranscription, usageFromOpenAIResponseDone } from "./openai-usage";
+import type { ContextPacket, DisconnectReason, NormalizedProviderEvent, ProviderDeliveryReceipt, ProviderKind, ProviderSessionId, VoiceToolName, VoiceToolResultRecord, VoiceToolSurface } from "../../types";
+import type { ProviderConnectConfig, ProviderEventSink, RealtimeProviderAdapter, VoiceResponseRequest } from "../types";
+import { usageFromOpenAIInputTranscription, usageFromOpenAIResponseDone } from "./usage";
 import { hasOpenAIRealtimeCredentials, renderContextPacket, toOpenAITool } from "./shared";
 
 export { hasOpenAIRealtimeCredentials };

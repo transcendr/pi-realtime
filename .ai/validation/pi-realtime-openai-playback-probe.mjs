@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const playback = readFileSync(".pi/extensions/pi-realtime/playback.ts", "utf8");
-const openai = readFileSync(".pi/extensions/pi-realtime/providers/openai.ts", "utf8");
+const openai = readFileSync(".pi/extensions/pi-realtime/providers/openai/index.ts", "utf8");
 const service = readFileSync(".pi/extensions/pi-realtime/service.ts", "utf8");
 const commands = readFileSync(".pi/extensions/pi-realtime/commands.ts", "utf8");
 const providerTypes = readFileSync(".pi/extensions/pi-realtime/providers/types.ts", "utf8");

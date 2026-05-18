@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 
 const typesSource = readFileSync(".pi/extensions/pi-realtime/types.ts", "utf8");
 const providerTypesSource = readFileSync(".pi/extensions/pi-realtime/providers/types.ts", "utf8");
@@ -19,6 +19,7 @@ assert.match(serviceSource, /createDefaultProviderRuntimeRegistry/);
 assert.doesNotMatch(serviceSource, /from "\.\/providers\/openai"|from "@google\/genai"|openai\/realtime|createOpenAIRealtimeProvider|hasOpenAIRealtimeCredentials|createOpenAIWebRTCBridgeAdapter|createOpenAIWebRTCClientSecret/);
 assert.doesNotMatch(serviceSource, /setOpenAIWebRTCEnabled|isOpenAIWebRTCEnabled|startWebRTCHelper|stopWebRTCHelper|webRTCHelperStatus/);
 assert.doesNotMatch(commandsSource, /function startOpenAI|function stopOpenAI|isOpenAIWebRTCEnabled/);
+assert.deepEqual(readdirSync(".pi/extensions/pi-realtime/providers").filter((name) => /^openai[-.]/.test(name)), []);
 
 function routeToolResult(pending, result) {
   const call = pending.get(result.voiceToolCallId);
