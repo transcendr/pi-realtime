@@ -1,7 +1,9 @@
+import { appendFileSync } from "node:fs";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { createMacOSFfmpegAudioCapture, type AudioCaptureController } from "./audio";
 import { contextPacketSent, nextProviderSessionId, primaryChanged, providerEventObserved, sessionStarted, sessionStopped, usageObserved, voiceToolCallReceived, voiceToolResultSent } from "./events";
 import { createFfplayAudioPlayback, type AudioPlaybackController } from "./playback";
+import { createDebugTraceRecorder } from "./debug-trace";
 import { defaultVoiceToolSurface, voiceSystemPrompt } from "./prompt";
 import { createWebRTCHelperServer, openHelperUrl, type WebRTCHelperServer } from "./media/webrtc-helper/server";
 import { buildCitationPacket, buildStatePacket, buildToolSurfacePacket, nextContextRevision } from "./state-packets";
@@ -38,6 +40,7 @@ export type Service = {
 	startWebRTCHelper(providerSessionId: ProviderSessionId, ctx: ExtensionContext): Promise<string>;
 	stopWebRTCHelper(providerSessionId?: ProviderSessionId): Promise<void>;
 	webRTCHelperStatus(): string;
+	debugText(providerSessionId?: ProviderSessionId): string;
 	rawEchoWarningText(): string;
 	simulateFakeTranscript(providerSessionId: ProviderSessionId, text: string, final?: boolean): void;
 	simulateFakeToolCall(providerSessionId: ProviderSessionId, name: VoiceToolName, args?: Record<string, unknown>): Promise<string>;
@@ -54,6 +57,7 @@ class RealtimeService implements Service {
 	private readonly audioCaptures = new Map<ProviderSessionId, AudioCaptureController>();
 	private readonly audioPlaybacks = new Map<ProviderSessionId, AudioPlaybackController>();
 	private readonly rawEchoWarnings = new Set<ProviderSessionId>();
+	private readonly debugTracePaths = new Map<ProviderSessionId, string>();
 	private readonly webrtcHelper: WebRTCHelperServer = createWebRTCHelperServer();
 	private readonly providerSink: ProviderEventSink = { onProviderEvent: (event) => void this.handleProviderEvent(event), onProviderAudio: (chunk) => this.handleProviderAudio(chunk) };
 	constructor(private readonly store: Store, private readonly controlPlane: ControlPlane) {}
@@ -140,7 +144,10 @@ class RealtimeService implements Service {
 		await this.stopAudioPlayback(providerSessionId);
 		await this.adapters.get(providerSessionId)?.disconnect("user");
 		await this.webrtcHelper.start();
-		const adapter = createOpenAIWebRTCBridgeAdapter(providerSessionId, this.webrtcHelper, () => createOpenAIWebRTCClientSecret({ model: session.model, instructions: systemPromptFor(this.surface), toolSurface: this.surface }));
+		const trace = createDebugTraceRecorder(providerSessionId);
+		this.debugTracePaths.set(providerSessionId, trace.path);
+		trace.write({ source: "service", direction: "start_webrtc_helper", model: session.model });
+		const adapter = createOpenAIWebRTCBridgeAdapter(providerSessionId, this.webrtcHelper, () => createOpenAIWebRTCClientSecret({ model: session.model, instructions: systemPromptFor(this.surface), toolSurface: this.surface }), trace);
 		this.adapters.set(providerSessionId, adapter);
 		const packets = this.buildPackets(ctx, providerSessionId);
 		await adapter.connect({ providerSessionId, provider: "openai", model: session.model, personaId: session.personaId, systemPrompt: systemPromptFor(this.surface), toolSurface: this.surface, initialContext: packets[0], capabilities: { preferPassiveContext: false, preferSemanticVad: true } }, this.providerSink);
@@ -163,6 +170,11 @@ class RealtimeService implements Service {
 
 	webRTCHelperStatus(): string {
 		return this.webrtcHelper.status();
+	}
+
+	debugText(providerSessionId?: ProviderSessionId): string {
+		const entries = providerSessionId ? [...this.debugTracePaths].filter(([id]) => id === providerSessionId) : [...this.debugTracePaths];
+		return entries.length > 0 ? ["realtime debug traces:", ...entries.map(([id, path]) => `- ${id}: ${path}`)].join("\n") : "No realtime debug traces recorded yet.";
 	}
 
 	rawEchoWarningText(): string {
@@ -241,12 +253,19 @@ class RealtimeService implements Service {
 	}
 
 	private async handleProviderEvent(event: NormalizedProviderEvent): Promise<void> {
+		this.traceProviderEvent(event);
 		this.store.append(providerEventObserved(event));
 		if (event.type === "usage") this.store.append(usageObserved(event.observation));
 		this.notifyProviderEvent(event);
 		if (event.type !== "tool_call") return;
 		this.store.append(voiceToolCallReceived(event.call));
 		await this.executeDirectTool(event.call);
+	}
+
+	private traceProviderEvent(event: NormalizedProviderEvent): void {
+		const path = this.debugTracePaths.get(event.providerSessionId);
+		if (!path) return;
+		appendFileSync(path, `${JSON.stringify({ at: Date.now(), providerSessionId: event.providerSessionId, source: "service", direction: "provider_event", eventType: event.type, providerEventId: event.providerEventId, localSeq: event.localSeq, toolName: event.type === "tool_call" ? event.call.name : undefined })}\n`, "utf8");
 	}
 
 	private notifyProviderEvent(event: NormalizedProviderEvent): void {

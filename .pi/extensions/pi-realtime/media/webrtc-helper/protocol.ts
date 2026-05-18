@@ -1,3 +1,4 @@
+import type { DebugTraceRecorder } from "../../debug-trace";
 import type { ContextPacket, NormalizedProviderEvent, ProviderKind, ProviderSessionId, VoiceToolCallRecord, VoiceToolSurface } from "../../types";
 import type { UsageObservation, UsageSource } from "../../usage";
 
@@ -8,14 +9,17 @@ export type WebRTCHelperSessionConfig = {
 	instructions: string;
 	toolSurface: VoiceToolSurface;
 	initialContext: ContextPacket;
+	debugTracePath?: string;
 };
 
 export type WebRTCHelperRegistrationConfig = WebRTCHelperSessionConfig & {
 	createClientSecret(): Promise<unknown>;
 	normalizeUsageEvent?(input: { source: UsageSource; realtimeEvent: unknown; providerEventId?: string; at?: number }): UsageObservation | undefined;
+	trace?: DebugTraceRecorder;
 };
 
 export type WebRTCHelperInboundEvent =
+	| { type: "trace"; trace: Record<string, unknown>; providerEventId?: string }
 	| { type: "connected"; providerEventId?: string }
 	| { type: "disconnected"; reason: string; providerEventId?: string }
 	| { type: "error"; message: string; recoverable?: boolean; providerEventId?: string }

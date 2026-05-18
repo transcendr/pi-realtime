@@ -30,11 +30,15 @@ async function start() {
 	dc = pc.createDataChannel("oai-events");
 	dc.addEventListener("open", () => {
 		setStatus(`Connected: ${config.providerSessionId}`, "status");
+		log(`debug trace: ${config.debugTracePath || "not configured"}`);
 		postEvent({ type: "connected" });
 		sendContext(config.initialContext);
 		pollTimer = setInterval(() => pollOutbox().catch((error) => log(`poll failed: ${error.message}`)), 250);
 	});
-	dc.addEventListener("message", (event) => handleRealtimeEvent(JSON.parse(event.data)));
+	dc.addEventListener("message", (event) => {
+		trace("openai_inbound_raw", { bytes: event.data.length });
+		handleRealtimeEvent(JSON.parse(event.data));
+	});
 	dc.addEventListener("close", () => postEvent({ type: "disconnected", reason: "data channel closed" }));
 	const offer = await pc.createOffer();
 	await pc.setLocalDescription(offer);
@@ -66,6 +70,7 @@ function logAudioSettings(track) {
 }
 
 function handleRealtimeEvent(event) {
+	trace("openai_inbound", { summary: summarizeRealtimeEvent(event) });
 	if (event.type === "response.function_call_arguments.done") return postEvent({ type: "tool_call", providerEventId: event.event_id, call: { voiceToolCallId: event.call_id, providerToolCallId: event.call_id, name: event.name, arguments: parseArgs(event.arguments) } });
 	if (event.type === "conversation.item.input_audio_transcription.completed") {
 		logUsage("input transcription", event.usage);
@@ -86,9 +91,12 @@ function handleRealtimeEvent(event) {
 
 async function pollOutbox() {
 	if (!dc || dc.readyState !== "open") return;
-	const result = await json(`/pi-realtime/openai/${encodeURIComponent(providerSessionId)}/outbox?after=${lastOutboxId}`);
+	const after = lastOutboxId;
+	const result = await json(`/pi-realtime/openai/${encodeURIComponent(providerSessionId)}/outbox?after=${after}`);
+	trace("outbox_poll", { after, returnedIds: (result.events || []).map((item) => item.id) });
 	for (const item of result.events || []) {
 		lastOutboxId = Math.max(lastOutboxId, item.id);
+		trace("openai_outbound_from_outbox", { outboxId: item.id, summary: summarizeRealtimeEvent(item.event) });
 		dc.send(JSON.stringify(item.event));
 	}
 }
@@ -99,6 +107,7 @@ function sendContext(packet) {
 
 function sendRealtime(event) {
 	if (!dc || dc.readyState !== "open") return;
+	trace("openai_outbound_direct", { summary: summarizeRealtimeEvent(event) });
 	dc.send(JSON.stringify(event));
 }
 
@@ -111,6 +120,24 @@ async function json(url, options) {
 	const response = await fetch(url, options);
 	if (!response.ok) throw new Error(`${url} failed: ${response.status} ${await response.text()}`);
 	return response.json();
+}
+
+function trace(label, data = {}) {
+	postEvent({ type: "trace", trace: { label, ...data } }).catch((error) => log(`trace post failed: ${error.message}`));
+}
+
+function summarizeRealtimeEvent(event) {
+	return {
+		type: event.type,
+		eventId: event.event_id,
+		responseId: event.response?.id || event.response_id,
+		itemId: event.item?.id || event.item_id,
+		callId: event.call_id,
+		name: event.name,
+		itemType: event.item?.type,
+		role: event.item?.role,
+		contentTypes: Array.isArray(event.item?.content) ? event.item.content.map((part) => part?.type).filter(Boolean) : undefined,
+	};
 }
 
 function logUsage(label, usage) {
