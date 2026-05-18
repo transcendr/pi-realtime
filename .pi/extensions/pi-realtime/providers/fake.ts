@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ContextPacket, DisconnectReason, NormalizedProviderEvent, ProviderDeliveryReceipt, ProviderKind, ProviderSessionId, VoiceToolName, VoiceToolResultRecord, VoiceToolSurface } from "../types";
-import type { ProviderConnectConfig, ProviderEventSink, RealtimeProviderAdapter, VoiceResponseRequest } from "./types";
+import type { ProviderConnectConfig, ProviderEventSink, RealtimeContextPushRequest, RealtimeProviderAdapter, VoiceResponseRequest } from "./types";
 
 export class FakeRealtimeProviderAdapter implements RealtimeProviderAdapter {
 	readonly provider: ProviderKind = "fake";
@@ -11,6 +11,7 @@ export class FakeRealtimeProviderAdapter implements RealtimeProviderAdapter {
 	private connected = false;
 	readonly deliveredPackets: ContextPacket[] = [];
 	readonly toolResults: VoiceToolResultRecord[] = [];
+	readonly pushedContexts: RealtimeContextPushRequest[] = [];
 
 	constructor(providerSessionId: ProviderSessionId) {
 		this.providerSessionId = providerSessionId;
@@ -45,6 +46,12 @@ export class FakeRealtimeProviderAdapter implements RealtimeProviderAdapter {
 	async sendTextInput(text: string): Promise<ProviderDeliveryReceipt> {
 		this.simulateTranscript(text, true);
 		return { status: "delivered", message: "fake provider emitted transcript" };
+	}
+
+	async pushContext(input: RealtimeContextPushRequest): Promise<ProviderDeliveryReceipt> {
+		this.pushedContexts.push(input);
+		if (input.mode === "request_spoken_response") this.emit({ type: "assistant_transcript", text: `Realtime received Pi update: ${input.summary ?? input.text.slice(0, 60)}`, final: true });
+		return { status: "delivered", message: input.mode === "request_spoken_response" ? "fake provider stored context and emitted acknowledgement" : "fake provider stored context without response" };
 	}
 
 	async sendAudioInput(_audio: Buffer): Promise<ProviderDeliveryReceipt> {

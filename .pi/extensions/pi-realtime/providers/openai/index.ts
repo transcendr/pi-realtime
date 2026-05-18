@@ -1,8 +1,9 @@
 import { OpenAIRealtimeWebSocket } from "openai/realtime/websocket";
 import type { RealtimeClientEvent, RealtimeServerEvent } from "openai/resources/realtime/realtime";
 import type { ContextPacket, DisconnectReason, NormalizedProviderEvent, ProviderDeliveryReceipt, ProviderKind, ProviderSessionId, VoiceToolName, VoiceToolResultRecord, VoiceToolSurface } from "../../types";
-import type { ProviderConnectConfig, ProviderEventSink, RealtimeProviderAdapter, VoiceResponseRequest } from "../types";
+import type { ProviderConnectConfig, ProviderEventSink, RealtimeProviderAdapter, RealtimeContextPushRequest, ToolResultResponsePolicy, VoiceResponseRequest } from "../types";
 import { usageFromOpenAIInputTranscription, usageFromOpenAIResponseDone } from "./usage";
+import { buildOpenAIRealtimeAudioConfig, isOpenAITranscriptActionable } from "./session-config";
 import { hasOpenAIRealtimeCredentials, renderContextPacket, toOpenAITool } from "./shared";
 
 export { hasOpenAIRealtimeCredentials };
@@ -58,9 +59,17 @@ export class OpenAIRealtimeProviderAdapter implements RealtimeProviderAdapter {
 		this.sendSessionUpdate();
 	}
 
-	async sendToolResult(result: VoiceToolResultRecord): Promise<void> {
+	async sendToolResult(result: VoiceToolResultRecord, policy: ToolResultResponsePolicy = "none"): Promise<void> {
 		this.send({ type: "conversation.item.create", item: { type: "function_call_output", call_id: result.voiceToolCallId, output: result.resultText } } as RealtimeClientEvent);
-		await this.requestResponse({ reason: "tool_result" });
+		if (policy === "none") return;
+		await this.requestResponse({ reason: policy === "final_ack" ? "tool_result_final_ack" : "tool_result_continue" });
+	}
+
+	async pushContext(input: RealtimeContextPushRequest): Promise<ProviderDeliveryReceipt> {
+		const text = `[pi-update source=${input.source}${input.summary ? ` summary=${JSON.stringify(input.summary)}` : ""}]\n${input.text}`;
+		this.send({ type: "conversation.item.create", item: { type: "message", role: "system", content: [{ type: "input_text", text }] } } as RealtimeClientEvent);
+		if (input.mode === "request_spoken_response") await this.requestResponse({ reason: "pi_context_push" });
+		return { status: "delivered", message: input.mode === "request_spoken_response" ? "context sent and spoken response requested" : "context sent without response" };
 	}
 
 	async sendTextInput(text: string): Promise<ProviderDeliveryReceipt> {
@@ -87,7 +96,7 @@ export class OpenAIRealtimeProviderAdapter implements RealtimeProviderAdapter {
 	private sendSessionUpdate(): void {
 		const surface = this.toolSurface;
 		if (!surface) return;
-		this.send({ type: "session.update", session: { type: "realtime", model: this.model, instructions: this.instructions, output_modalities: [this.audioOutputEnabled ? "audio" : "text"], audio: { input: { format: { type: "audio/pcm", rate: 24000 }, transcription: { model: "gpt-4o-mini-transcribe" }, turn_detection: { type: "semantic_vad", create_response: true, interrupt_response: true } }, output: { format: { type: "audio/pcm", rate: 24000 }, voice: "marin" } }, tools: surface.tools.map(toOpenAITool), tool_choice: "auto" } } as RealtimeClientEvent);
+		this.send({ type: "session.update", session: { type: "realtime", model: this.model, instructions: this.instructions, output_modalities: [this.audioOutputEnabled ? "audio" : "text"], audio: buildOpenAIRealtimeAudioConfig({ includeRawPcmFormat: true, includeRawPcmOutputFormat: true }), tools: surface.tools.map(toOpenAITool), tool_choice: "auto" } } as RealtimeClientEvent);
 	}
 
 	private awaitOpen(rt: OpenAIRealtimeWebSocket): Promise<void> {
@@ -102,7 +111,9 @@ export class OpenAIRealtimeProviderAdapter implements RealtimeProviderAdapter {
 		if (event.type === "response.function_call_arguments.done") return this.emitToolCall(event.name, event.call_id, event.arguments, event.event_id);
 		if (event.type === "conversation.item.input_audio_transcription.completed") {
 			this.emitUsage(usageFromOpenAIInputTranscription(event, { providerSessionId: this.providerSessionId, model: this.model, providerEventId: event.event_id }));
-			return this.emit({ type: "user_transcript", text: event.transcript, final: true, providerEventId: event.event_id });
+			this.emit({ type: "user_transcript", text: event.transcript, final: true, providerEventId: event.event_id });
+			if (isOpenAITranscriptActionable(event.transcript)) void this.requestResponse({ reason: "valid_transcript" }).catch((error) => this.emit({ type: "error", message: error.message, recoverable: true, providerEventId: event.event_id }));
+			return;
 		}
 		if (event.type === "response.output_text.done") return this.emit({ type: "assistant_transcript", text: event.text, final: true, providerEventId: event.event_id });
 		if (event.type === "response.output_audio_transcript.done") return this.emit({ type: "assistant_transcript", text: event.transcript, final: true, providerEventId: event.event_id });

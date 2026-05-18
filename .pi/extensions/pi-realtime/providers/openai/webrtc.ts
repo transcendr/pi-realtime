@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import type { ClientSecretCreateResponse } from "openai/resources/realtime/client-secrets";
 import type { VoiceToolSurface } from "../../types";
+import { buildOpenAIRealtimeAudioConfig } from "./session-config";
 import { hasOpenAIRealtimeCredentials, toOpenAITool } from "./shared";
 
 /** @deprecated Use hasOpenAIRealtimeCredentials from ./shared instead. */
@@ -15,10 +16,7 @@ export async function createOpenAIWebRTCClientSecret(input: { model: string; ins
 			model: input.model,
 			instructions: input.instructions,
 			output_modalities: ["audio"],
-			audio: {
-				input: { transcription: { model: "gpt-4o-mini-transcribe" }, turn_detection: { type: "semantic_vad", create_response: true, interrupt_response: true } },
-				output: { voice: "marin" },
-			},
+			audio: buildOpenAIRealtimeAudioConfig(),
 			tools: input.toolSurface.tools.map(toOpenAITool),
 			tool_choice: "auto",
 		},

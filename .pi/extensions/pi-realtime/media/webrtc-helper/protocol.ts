@@ -10,6 +10,7 @@ export type WebRTCHelperSessionConfig = {
 	toolSurface: VoiceToolSurface;
 	initialContext: ContextPacket;
 	debugTracePath?: string;
+	resumeOutboxAfter?: number;
 };
 
 export type WebRTCHelperRegistrationConfig = WebRTCHelperSessionConfig & {
@@ -20,6 +21,7 @@ export type WebRTCHelperRegistrationConfig = WebRTCHelperSessionConfig & {
 
 export type WebRTCHelperInboundEvent =
 	| { type: "trace"; trace: Record<string, unknown>; providerEventId?: string }
+	| { type: "outbox_ack"; outboxId: number; providerEventId?: string }
 	| { type: "connected"; providerEventId?: string }
 	| { type: "disconnected"; reason: string; providerEventId?: string }
 	| { type: "error"; message: string; recoverable?: boolean; providerEventId?: string }
