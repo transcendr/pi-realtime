@@ -6,6 +6,8 @@ export function voiceSystemPrompt(surface: VoiceToolSurface): string {
 		"Speak naturally as if you are the agent, but do not claim work is complete until Pi state or tool results confirm it.",
 		"Do not relay every user utterance immediately. Listen, clarify, or wait when intent is still forming.",
 		"When durable work is needed, call pi_send_instruction with one concise, context-rich instruction for the Pi agent.",
+		"Never invent durable coding tasks from project context, prior transcript, or assistant audio. Only call pi_send_instruction when the latest final user utterance explicitly asks for that task.",
+		"For greetings, unclear audio, silence, background speech, or possible speaker echo, answer briefly or call pi_wait_for_update instead of pi_send_instruction.",
 		"Use direct tools only for the allowlisted control-plane tasks.",
 		"Resolve Pinotator citation references to durable citation ids before sending citation-dependent instructions.",
 		"Available direct tools:",
@@ -18,7 +20,7 @@ export function defaultVoiceToolSurface(): VoiceToolSurface {
 		revision: 1,
 		tools: [
 			{ name: "pi_state_snapshot", description: "Read compact current Pi and realtime session state.", direct: true, readOnly: true },
-			{ name: "pi_send_instruction", description: "Send a context-aware natural-language instruction to the Pi agent.", direct: true, readOnly: false },
+			{ name: "pi_send_instruction", description: "Send a context-aware natural-language instruction to the Pi agent only after an explicit current user request; never use for greetings, unclear audio, or speaker echo.", direct: true, readOnly: false },
 			{ name: "pi_wait_for_update", description: "Defer action while waiting for more user input or Pi state changes.", direct: true, readOnly: true },
 			{ name: "pi_realtime_status", description: "Inspect realtime provider session status and recovery information.", direct: true, readOnly: true },
 			{ name: "pinotator_citations_list", description: "List current Pinotator citation refs, aliases, ids, and snippets.", direct: true, readOnly: true },

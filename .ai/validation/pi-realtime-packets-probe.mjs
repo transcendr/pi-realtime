@@ -8,6 +8,9 @@ const controlPlaneSource = readFileSync(".pi/extensions/pi-realtime/control-plan
 
 for (const name of ["buildStatePacket", "buildCitationPacket", "buildToolSurfacePacket", "nextContextRevision", "buildCitationDeckFromBranch", "renderCitationDeck"]) assert.match(packetSource, new RegExp(`function ${name}`));
 for (const tool of ["pi_state_snapshot", "pi_send_instruction", "pi_wait_for_update", "pi_realtime_status", "pinotator_citations_list", "pinotator_citation_resolve"]) assert.match(promptSource, new RegExp(tool));
+assert.match(promptSource, /Never invent durable coding tasks/);
+assert.match(promptSource, /latest final user utterance explicitly asks/);
+assert.match(promptSource, /greetings, unclear audio, silence, background speech, or possible speaker echo/);
 assert.match(controlPlaneSource, /delivery === "immediate"/);
 assert.match(controlPlaneSource, /deliverAs: delivery/);
 

@@ -8,6 +8,10 @@ let currentPc;
 let currentStream;
 let lastOutboxId = 0;
 let pollTimer;
+let micResumeTimer;
+let microphoneEnabled = true;
+
+const MIC_RESUME_DELAY_MS = 1_500;
 
 startButton.addEventListener("click", () => start().catch((error) => reportError(error)));
 start().catch((error) => reportError(error));
@@ -23,6 +27,7 @@ async function start() {
 	pc.onconnectionstatechange = () => log(`peer: ${pc.connectionState}`);
 	const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: { ideal: true }, noiseSuppression: { ideal: true }, autoGainControl: { ideal: true }, channelCount: { ideal: 1 } } });
 	currentStream = stream;
+	microphoneEnabled = true;
 	for (const track of stream.getAudioTracks()) {
 		logAudioSettings(track);
 		pc.addTrack(track, stream);
@@ -47,13 +52,16 @@ async function start() {
 
 function cleanupCurrentConnection() {
 	clearInterval(pollTimer);
+	clearTimeout(micResumeTimer);
 	pollTimer = undefined;
+	micResumeTimer = undefined;
 	if (dc) dc.close();
 	if (currentPc) currentPc.close();
 	if (currentStream) for (const track of currentStream.getTracks()) track.stop();
 	dc = undefined;
 	currentPc = undefined;
 	currentStream = undefined;
+	microphoneEnabled = true;
 	remoteAudio.srcObject = null;
 }
 
@@ -66,6 +74,7 @@ function logAudioSettings(track) {
 }
 
 function handleRealtimeEvent(event) {
+	if (isAssistantOutputStart(event)) holdMicrophone(`assistant output: ${event.type}`);
 	if (event.type === "response.function_call_arguments.done") return postEvent({ type: "tool_call", providerEventId: event.event_id, call: { voiceToolCallId: event.call_id, providerToolCallId: event.call_id, name: event.name, arguments: parseArgs(event.arguments) } });
 	if (event.type === "conversation.item.input_audio_transcription.completed") {
 		logUsage("input transcription", event.usage);
@@ -79,9 +88,32 @@ function handleRealtimeEvent(event) {
 	if (event.type === "response.done") {
 		logUsage("response", event.response?.usage);
 		postEvent({ type: "usage", source: "response", providerEventId: event.event_id, realtimeEvent: event }).catch((error) => log(`usage post failed: ${error.message}`));
+		scheduleMicrophoneResume("response done");
 		return postEvent({ type: "turn_signal", providerEventId: event.event_id, signal: "turn_complete" });
 	}
 	if (event.type === "error") return postEvent({ type: "error", providerEventId: event.event_id, message: event.error?.message || "OpenAI realtime error", recoverable: true });
+}
+
+function isAssistantOutputStart(event) {
+	return ["response.created", "response.output_item.added", "response.content_part.added", "response.audio.delta", "response.output_audio.delta", "response.audio_transcript.delta", "response.output_audio_transcript.delta", "response.text.delta", "response.output_text.delta"].includes(event.type);
+}
+
+function holdMicrophone(reason) {
+	clearTimeout(micResumeTimer);
+	micResumeTimer = undefined;
+	setMicrophoneEnabled(false, reason);
+}
+
+function scheduleMicrophoneResume(reason) {
+	clearTimeout(micResumeTimer);
+	micResumeTimer = setTimeout(() => setMicrophoneEnabled(true, reason), MIC_RESUME_DELAY_MS);
+}
+
+function setMicrophoneEnabled(enabled, reason) {
+	if (!currentStream || microphoneEnabled === enabled) return;
+	microphoneEnabled = enabled;
+	for (const track of currentStream.getAudioTracks()) track.enabled = enabled;
+	log(`${enabled ? "mic resumed" : "mic held"}: ${reason}`);
 }
 
 async function pollOutbox() {

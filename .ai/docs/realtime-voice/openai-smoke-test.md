@@ -83,8 +83,10 @@ Expected:
 - The browser asks for microphone permission.
 - The helper page connects to OpenAI Realtime over WebRTC using the GA `/v1/realtime/calls` SDP exchange, not the retired beta `/v1/realtime?model=...` SDP shape.
 - You can use MacBook speakers/mic with browser AEC instead of the raw `ffmpeg`/`ffplay` path.
+- The helper also disables the local microphone while assistant output is active, then resumes after a short cooldown, to reduce speaker feedback loops when browser/OS AEC is imperfect.
 - Pi still receives transcript/tool/error events through the provider-neutral service bridge.
 - The helper forwards `response.done.response.usage` and input transcription usage events to Pi; the helper page logs compact usage lines when OpenAI includes usage payloads.
+- `pi_send_instruction` is accepted only when grounded in a recent final user transcript; greetings, unclear audio, and ungrounded/hallucinated tasks are rejected and returned as tool results.
 
 Stop helper mode when done:
 
@@ -105,7 +107,7 @@ Expected:
 - Response usage from `response.done.response.usage` is counted separately from input transcription usage from `conversation.item.input_audio_transcription.completed.usage`.
 - The summary shows input text/audio/image tokens, cached input tokens, output text/audio tokens, total tokens, and estimated response cost.
 - If input transcription is enabled, its tokens are tracked while its local cost estimate is marked excluded/unknown unless the transcription rate card is configured.
-- The summary reminds that OpenAI dashboard billing is authoritative.
+- The OpenAI dashboard can be higher than `/realtime usage` because the local estimate excludes unknown transcription-rate usage and the dashboard may include all project requests for the day. The dashboard remains authoritative.
 
 ## Function-call smoke prompt
 
