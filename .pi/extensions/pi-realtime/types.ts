@@ -143,7 +143,7 @@ export type CitationDeck = {
 
 export type CitationDeckSummary = { revision: number; count: number; citationIds: CitationId[]; observedAt: number };
 
-export type VoiceToolName = "pi_state_snapshot" | "pi_send_instruction" | "pi_wait_for_update" | "pi_realtime_status" | "pinotator_citations_list" | "pinotator_citation_resolve";
+export type VoiceToolName = "request" | "pi_state_snapshot" | "pi_send_instruction" | "pi_wait_for_update" | "pi_realtime_status" | "pinotator_citations_list" | "pinotator_citation_resolve";
 
 export type VoiceToolDefinition = {
 	name: VoiceToolName;
@@ -202,7 +202,8 @@ export type VoiceInstructionRecord = VoiceInstructionInput & { submittedAt: numb
 export type ProviderDeliveryReceipt = { status: "delivered" | "skipped" | "failed"; message?: string };
 export type RealtimePushMode = "context_only" | "request_spoken_response";
 export type RealtimePushSource = "pi_model_tool" | "automatic_agent_output" | "manual";
-export type RealtimeContextPushInput = { providerSessionId?: ProviderSessionId; text: string; mode: RealtimePushMode; source: RealtimePushSource; summary?: string };
+export type RealtimeUpdateKind = "ack" | "status" | "text";
+export type RealtimeContextPushInput = { providerSessionId?: ProviderSessionId; text: string; mode: RealtimePushMode; source: RealtimePushSource; kind: RealtimeUpdateKind; summary?: string };
 export type DisconnectReason = "user" | "shutdown" | "reload" | "tree" | "compact" | "error";
 
 export type RealtimeEvent =

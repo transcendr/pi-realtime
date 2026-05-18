@@ -2,6 +2,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { handleRealtimeCommand, realtimeCompletions } from "./commands";
 import { filterRealtimeContextMessages } from "./context";
 import { createControlPlane } from "./control-plane";
+import { registerRealtimeMessageRenderers } from "./messages";
 import { createService, type Service } from "./service";
 import { createStore, type Store } from "./store";
 import { registerRealtimeModelTools } from "./tools/pi";
@@ -15,6 +16,7 @@ export function registerPiRealtime(pi: ExtensionAPI): void {
 	let currentCtx: ExtensionContext | undefined;
 	const controlPlane = createControlPlane(pi, store, () => currentCtx);
 	const service = createService(store, controlPlane);
+	registerRealtimeMessageRenderers(pi);
 
 	pi.registerCommand("realtime", {
 		description: "Manage realtime voice provider sessions for Pi",

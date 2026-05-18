@@ -7,7 +7,9 @@ const promptSource = readFileSync(".pi/extensions/pi-realtime/prompt.ts", "utf8"
 const controlPlaneSource = readFileSync(".pi/extensions/pi-realtime/control-plane.ts", "utf8");
 
 for (const name of ["buildStatePacket", "buildCitationPacket", "buildToolSurfacePacket", "nextContextRevision", "buildCitationDeckFromBranch", "renderCitationDeck"]) assert.match(packetSource, new RegExp(`function ${name}`));
-for (const tool of ["pi_state_snapshot", "pi_send_instruction", "pi_wait_for_update", "pi_realtime_status", "pinotator_citations_list", "pinotator_citation_resolve"]) assert.match(promptSource, new RegExp(tool));
+assert.match(promptSource, /name: "request"/);
+assert.doesNotMatch(promptSource, /pi_state_snapshot|pi_send_instruction|pi_wait_for_update|pinotator_citation_resolve/);
+assert.match(promptSource, /Use the request tool/);
 assert.match(controlPlaneSource, /delivery === "immediate"/);
 assert.match(controlPlaneSource, /deliverAs: delivery/);
 

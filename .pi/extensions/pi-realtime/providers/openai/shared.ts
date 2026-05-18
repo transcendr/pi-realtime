@@ -14,6 +14,7 @@ export function toOpenAITool(tool: VoiceToolSurface["tools"][number]): RealtimeF
 }
 
 function toolParameters(name: VoiceToolName): unknown {
+	if (name === "request") return { type: "object", additionalProperties: false, properties: { request: { type: "string", description: "Concise backend request capturing the user's intent, constraints, urgency, and relevant context." }, urgency: { type: "string", enum: ["normal", "interrupt"] }, userUtteranceSummary: { type: "string" }, citedCitationIds: { type: "array", items: { type: "string" } } }, required: ["request"] };
 	if (name === "pi_send_instruction") return { type: "object", additionalProperties: false, properties: { instruction: { type: "string" }, urgency: { type: "string", enum: ["normal", "interrupt"] }, userUtteranceSummary: { type: "string" }, citedCitationIds: { type: "array", items: { type: "string" } } }, required: ["instruction"] };
 	if (name === "pinotator_citation_resolve") return { type: "object", additionalProperties: false, properties: { ref: { type: "string" }, includeFullText: { type: "boolean" } }, required: ["ref"] };
 	if (name === "pinotator_citations_list") return { type: "object", additionalProperties: false, properties: { maxItems: { type: "number" }, includeSnippets: { type: "boolean" } } };

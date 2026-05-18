@@ -2,6 +2,7 @@ import { OpenAIRealtimeWebSocket } from "openai/realtime/websocket";
 import type { RealtimeClientEvent, RealtimeServerEvent } from "openai/resources/realtime/realtime";
 import type { ContextPacket, DisconnectReason, NormalizedProviderEvent, ProviderDeliveryReceipt, ProviderKind, ProviderSessionId, VoiceToolName, VoiceToolResultRecord, VoiceToolSurface } from "../../types";
 import type { ProviderConnectConfig, ProviderEventSink, RealtimeProviderAdapter, RealtimeContextPushRequest, ToolResultResponsePolicy, VoiceResponseRequest } from "../types";
+import { renderRealtimeUpdateEnvelope, realtimeUpdateResponseInstructions } from "../../realtime-updates";
 import { usageFromOpenAIInputTranscription, usageFromOpenAIResponseDone } from "./usage";
 import { buildOpenAIRealtimeAudioConfig, isOpenAITranscriptActionable } from "./session-config";
 import { hasOpenAIRealtimeCredentials, renderContextPacket, toOpenAITool } from "./shared";
@@ -66,10 +67,9 @@ export class OpenAIRealtimeProviderAdapter implements RealtimeProviderAdapter {
 	}
 
 	async pushContext(input: RealtimeContextPushRequest): Promise<ProviderDeliveryReceipt> {
-		const text = `[pi-update source=${input.source}${input.summary ? ` summary=${JSON.stringify(input.summary)}` : ""}]\n${input.text}`;
-		this.send({ type: "conversation.item.create", item: { type: "message", role: "system", content: [{ type: "input_text", text }] } } as RealtimeClientEvent);
-		if (input.mode === "request_spoken_response") await this.requestResponse({ reason: "pi_context_push" });
-		return { status: "delivered", message: input.mode === "request_spoken_response" ? "context sent and spoken response requested" : "context sent without response" };
+		this.send({ type: "conversation.item.create", item: { type: "message", role: "system", content: [{ type: "input_text", text: renderRealtimeUpdateEnvelope(input) }] } } as RealtimeClientEvent);
+		if (input.mode === "request_spoken_response") await this.requestResponse({ reason: "pi_context_push", instructions: realtimeUpdateResponseInstructions(input.kind) });
+		return { status: "delivered", message: input.mode === "request_spoken_response" ? "backend update sent and spoken response requested" : "backend update sent without response" };
 	}
 
 	async sendTextInput(text: string): Promise<ProviderDeliveryReceipt> {
@@ -156,8 +156,8 @@ export function createOpenAIRealtimeProvider(providerSessionId: ProviderSessionI
 }
 
 function normalizeToolName(name: string): VoiceToolName {
-	const allowed: VoiceToolName[] = ["pi_state_snapshot", "pi_send_instruction", "pi_wait_for_update", "pi_realtime_status", "pinotator_citations_list", "pinotator_citation_resolve"];
-	return allowed.includes(name as VoiceToolName) ? name as VoiceToolName : "pi_realtime_status";
+	const allowed: VoiceToolName[] = ["request", "pi_state_snapshot", "pi_send_instruction", "pi_wait_for_update", "pi_realtime_status", "pinotator_citations_list", "pinotator_citation_resolve"];
+	return allowed.includes(name as VoiceToolName) ? name as VoiceToolName : "request";
 }
 
 function parseArgs(rawArgs: string): Record<string, unknown> {

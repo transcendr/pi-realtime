@@ -1,4 +1,4 @@
-# Implementation audit: Pi-to-realtime context push and tool-response policy
+# Implementation audit: realtime frontend / Pi backend communication model
 
 Date: 2026-05-18
 
@@ -6,132 +6,122 @@ Goal plan: `.ai/docs/realtime-voice/pi-to-realtime-context-and-tool-response-pol
 
 ## Current status
 
-Implementation is ready for live validation. Per the goal workflow, the session is paused at this point instead of marking complete so the user can validate the live realtime behavior.
+Implemented and ready for live validation. Per the goal workflow, pause before final completion so the user can validate realtime behavior.
 
-## Concrete deliverables / success criteria
+## Refined interaction model implemented
 
-- Explicit Pi model tool for pushing text/status/report content into realtime context.
-- At least two push modes: `context_only` and `request_spoken_response`.
-- Empty or invalid pushes rejected clearly.
-- Tool-result handling no longer blindly creates `response.create` after every direct voice tool result.
-- Common proxy command `tell Pi to X` should avoid the previous `pi_state_snapshot` + `pi_wait_for_update` fan-out.
-- Traces identify response intent/reason and suppression decisions.
-- Browser reconnect should not replay stale pushed text or stale response requests.
-- Document automatic Pi output transfer decisions.
-- `npm run gates:quality` passes.
+The architecture now follows the user's stated model:
+
+```text
+Realtime = voice frontend / interface
+Pi       = backend worker / main agent
+```
+
+Realtime should only do shallow interaction work: listen, clarify, and communicate user intent. Pi performs backend work and reports back through explicit realtime-send tools.
+
+## Prompt-to-artifact checklist
+
+| Requirement | Evidence |
+|---|---|
+| Realtime gets one tool named/described as generic `request` | `.pi/extensions/pi-realtime/prompt.ts` exposes only `request` in `defaultVoiceToolSurface()` |
+| Existing realtime tools are not deleted | `.pi/extensions/pi-realtime/tools/realtime.ts` still supports `pi_state_snapshot`, citation tools, `pi_wait_for_update`, `pi_realtime_status`, and legacy `pi_send_instruction` |
+| Existing realtime tools are not exposed to the realtime model | `defaultVoiceToolSurface()` returns only `{ name: "request" ... }`; validation asserts old names are absent from prompt surface |
+| `pi_send_instruction` renamed for exposed realtime use | exposed tool is `request`; OpenAI tool params use `request`; raw adapter unknown tool fallback is `request` |
+| Realtime system prompt reinforces frontend/backend model | `.pi/extensions/pi-realtime/prompt.ts`: says realtime is frontend/interface, not main coding worker, should use `request` for backend work, should not reveal backend split |
+| Realtime should not do multi-step processing/tool loops | Prompt forbids backend reasoning/tool chains; provider tool-result policy returns `none`; only one exposed tool exists |
+| Pi gets `realtime_send_ack` | `.pi/extensions/pi-realtime/tools/pi.ts` registers tool with ack-specific description |
+| Pi gets `realtime_send_status` | `.pi/extensions/pi-realtime/tools/pi.ts` registers tool with progress/checkpoint-specific description |
+| Pi gets `realtime_send_text` | `.pi/extensions/pi-realtime/tools/pi.ts` registers tool for summaries/reports/final answers |
+| Realtime send tools say no active session if inactive | `Service.pushRealtimeContext()` returns clear no-active/not-live messages instead of targeting stale primary blindly |
+| Default realtime-send target is originating realtime session | `Service.defaultRealtimePushTarget()` prefers `state.lastInstruction.providerSessionId`, then primary live adapter, then latest live adapter |
+| Start realtime session injects Pi context without triggering turn | `RealtimeService.startSession()` calls `controlPlane.sendSessionAwareness(session, true)`; control plane uses `pi.sendMessage()` without `triggerTurn` |
+| Stop realtime session injects Pi context without triggering turn | `RealtimeService.stopSession()` calls `controlPlane.sendSessionAwareness(session, false)` |
+| Realtime request into Pi uses custom message, not regular user message | `control-plane.ts` uses `pi.sendMessage(...)` with `REALTIME_REQUEST_MESSAGE_TYPE` and `triggerTurn: true`; no longer uses `pi.sendUserMessage()` |
+| Custom realtime request message is visible in TUI and rendered yellow | `.pi/extensions/pi-realtime/messages.ts` registers renderer using `theme.fg("warning", ...)` and request messages set `display: true` |
+| Custom request message includes model-facing guidance for Pi | `renderRealtimeRequestMessage()` tells Pi to treat request as user work delivered through realtime and use `realtime_send_ack/status/text` |
+| Provider-neutral architecture preserved | Pi model tools delegate to `Service.pushRealtimeContext`; OpenAI-specific delivery remains in OpenAI adapters/helper |
+| Browser reconnect stale replay hardening preserved | Pi pushes continue through existing WebRTC helper outbox/ack path |
+| Quality gate passes | `npm run gates:quality` passed on 2026-05-18 |
 
 ## Response-create path matrix
 
-| Path | Before | After | Evidence |
-|---|---|---|---|
-| Valid transcript | Helper/client sent `response.create` after accepted transcript | Still sends exactly for accepted transcript with reason `valid_transcript`; low-info transcript gate unchanged | `.pi/extensions/pi-realtime/media/webrtc-helper/client.js`, VAD probe |
-| Manual `/realtime text` / provider text input | Sends user message and `response.create` | unchanged; still intentionally user-facing | `sendTextInput` in OpenAI adapters |
-| Context packet update | Sends `conversation.item.create` context only | unchanged; no response requested by `updateContext` | `updateContext` in OpenAI adapters |
-| Tool result | Always enqueued function output and requested `response.create` reason `tool_result` | Function output is enqueued, but response is suppressed by default and traced as `tool_result_suppressed`; policy can opt into `tool_result_continue` or `tool_result_final_ack` | `sendToolResult(..., policy)` in provider interface and OpenAI adapters |
-| Pi explicit text push | did not exist | `context_only` enqueues context without response; `request_spoken_response` also requests one response reason `pi_context_push` | `pi_realtime_send_text`, `pushRealtimeContext`, OpenAI `pushContext` |
-| Outbox reconnect/replay | stale replay previously possible | existing cursor/ack outbox hardening preserved; Pi pushes use same outbox path and one-shot response semantics | WebRTC helper outbox ack/cursor probes and code |
+| Path | Current behavior |
+|---|---|
+| Accepted user transcript | Browser helper sends one `response.create` reason `valid_transcript` after transcript actionability gate |
+| Low-information/empty transcript | Suppressed with trace reason `low_information_transcript` or `empty_transcript` |
+| Realtime `request` tool result | Function output is sent; no automatic `response.create` continuation |
+| Legacy direct realtime tools | Still executable for tests/compatibility, but not exposed in prompt/tool surface |
+| Pi `realtime_send_ack/status/text` | Pushes `[pi-update ...]` context and requests one spoken realtime response |
+| Pi session start/stop awareness | `pi.sendMessage()` context injection only; does not trigger a turn |
 
-## Explicit Pi push tool schema and examples
+## Explicit Pi tool schema
 
-Tool registered in `.pi/extensions/pi-realtime/runtime.ts`:
-
-```text
-pi_realtime_send_text
-```
-
-Parameters:
+All three tools share:
 
 ```json
 {
-  "text": "string, required, non-empty after trim",
-  "providerSessionId": "string, optional; defaults to primary realtime session",
-  "mode": "context_only | request_spoken_response, optional default context_only",
-  "summary": "string, optional compact trace/UI label",
-  "audience": "voice_agent | user | both, optional caller clarity"
+  "text": "string, required",
+  "providerSessionId": "string, optional",
+  "summary": "string, optional"
 }
 ```
 
-Examples:
+Tool intent:
 
-```json
-{"text":"Started checking the latest logs.","mode":"context_only","summary":"log check started"}
-```
+- `realtime_send_ack`: short acknowledgement before work is complete.
+- `realtime_send_status`: progress updates for checkpoints, milestones, failures, successes, approach changes, and long-running turns.
+- `realtime_send_text`: summaries, reports, final answers, or other text context.
 
-```json
-{"text":"Final report: low-information VAD suppression is working; remaining issue was tool fan-out.","mode":"request_spoken_response","summary":"final log report","audience":"both"}
-```
+## Automatic transfer decision
 
-Safety:
+Current default remains explicit-only except session awareness and realtime request injection:
 
-- empty text rejected by `pushRealtimeContext` with `pi_realtime_send_text requires non-empty text.`
-- no provider secrets exposed;
-- provider-neutral service API delegates provider delivery to adapters;
-- trace records mode, source, summary, text length, and response request status.
+| Candidate | Implemented default |
+|---|---|
+| Every Pi assistant message | Off |
+| Final Pi assistant message for voice-originated request | Not yet automatic; use `realtime_send_text` explicitly |
+| Progress updates | Explicit via `realtime_send_status` |
+| Initial acknowledgement | Explicit via `realtime_send_ack` |
+| Realtime session active/stopped | Automatic custom context message, no turn |
+| Realtime user request | Automatic custom message, triggers turn |
 
-## Automatic Pi output transfer decision matrix
+Further automatic transfer should wait for live validation of this simpler model.
 
-| Candidate source | Default | Payload form | Mechanism | Notes |
-|---|---:|---|---|---|
-| Every Pi assistant message | off | n/a | n/a | Too broad; privacy/cost risk; explicitly not implemented. |
-| Final Pi assistant message satisfying a voice-originated instruction | future opt-in | compact tagged summary, status, details | `pi_realtime_send_text`-equivalent internal call, likely `context_only` first | Best first automatic transfer after explicit tool is live validated. |
-| Tool result summaries from long-running user-requested work | off initially | summary with correlation id | future automatic push | Needs correlation and dedupe. |
-| Goal completion/status transitions | off initially | compact status packet | future automatic push | Useful but should be opt-in and scoped. |
-| `/realtime` command outputs | explicit only | command result text or summary | explicit tool/manual path | Avoid hidden automatic chatter. |
-| Realtime extension errors | possible future opt-in | short error + recovery status | context-only or spoken if user-facing | Needs severity thresholds. |
+## Validation evidence
 
-Initial policy remains explicit-only. Automatic transfer is intentionally not implemented until live validation confirms explicit push and response policy behavior.
-
-## Deterministic validation evidence
-
-New probe:
+Commands run:
 
 ```text
-.ai/validation/pi-realtime-context-push-policy-probe.mjs
-```
-
-Covers:
-
-- `pi_realtime_send_text` registration;
-- `context_only` and `request_spoken_response` modes;
-- service-level empty text rejection;
-- provider-neutral push types;
-- OpenAI WebRTC and raw adapter `pushContext` implementation;
-- fake adapter support;
-- tool-result response suppression tracing;
-- prompt guidance against unnecessary `pi_state_snapshot` / `pi_wait_for_update` fan-out.
-
-Command run:
-
-```text
+npm run gates:typecheck
+npm run gates:validation
 npm run gates:quality
 ```
 
 Result: pass.
 
-The quality gate included:
+New/updated deterministic coverage includes:
 
-- Sentrux structure gate/check;
-- blocking deslop scan;
-- TypeScript typecheck;
-- deterministic validation probes;
-- Pi offline extension load smoke.
+- `.ai/validation/pi-realtime-context-push-policy-probe.mjs`
+- updated fake provider, provider isolation, packet, state, and OpenAI adapter probes
 
-## Live validation still required
+## Live validation checklist
 
-The goal explicitly requests pausing at the end for validation. Before marking complete, run live probes:
+Before marking the goal complete, validate:
 
-1. Say: `tell Pi to check the latest logs`.
-   - Expected: no `pi_state_snapshot` + `pi_wait_for_update` cascade.
-   - Expected: at most one model/tool turn beyond the user transcript.
-2. Call `pi_realtime_send_text` with `context_only`.
-   - Expected: context item delivered, no spontaneous speech / no `response.create`.
-3. Call `pi_realtime_send_text` with `request_spoken_response`.
-   - Expected: exactly one `response.create` and one spoken response.
-4. Reload/reconnect the browser helper.
-   - Expected: no stale Pi-pushed text or stale response replay.
-5. Inspect usage.
-   - Expected: no repeated cascade of identical cached audio-token accounting from tool-result loops.
+1. Reload/start OpenAI WebRTC realtime session.
+2. Confirm realtime prompt/tool surface exposes only `request`.
+3. Say: `tell Pi to check the latest logs`.
+   - Expected: realtime calls only `request`.
+   - Expected: Pi receives yellow custom `pi-realtime.request` message, not ordinary user message wrapper.
+   - Expected: no `pi_state_snapshot` / citation / wait tool chain.
+4. During Pi work, call `realtime_send_ack`, `realtime_send_status`, and `realtime_send_text`.
+   - Expected: each targets originating live realtime session by default.
+   - Expected: exactly one realtime response per explicit send.
+5. Stop realtime session and call a realtime-send tool.
+   - Expected: tool result says no active/live realtime session and does not retry.
+6. Inspect usage/log trace.
+   - Expected: no repeated tool-result response cascade.
 
-## Known implementation tradeoff to validate
+## Known caveat
 
-Direct voice tool results are now response-suppressed by default. This should stop the costly tool-loop cascade, but live testing must confirm the realtime user experience is acceptable when `pi_send_instruction` is terminally handled without an extra realtime continuation turn.
+The current active Pi process may still expose previously loaded tool names until `/reload` or a new Pi process reloads the extension. Live validation should start from a reloaded extension state.

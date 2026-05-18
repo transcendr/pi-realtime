@@ -50,7 +50,7 @@ export class FakeRealtimeProviderAdapter implements RealtimeProviderAdapter {
 
 	async pushContext(input: RealtimeContextPushRequest): Promise<ProviderDeliveryReceipt> {
 		this.pushedContexts.push(input);
-		if (input.mode === "request_spoken_response") this.emit({ type: "assistant_transcript", text: `Realtime received Pi update: ${input.summary ?? input.text.slice(0, 60)}`, final: true });
+		if (input.mode === "request_spoken_response") this.emit({ type: "assistant_transcript", text: input.text, final: true });
 		return { status: "delivered", message: input.mode === "request_spoken_response" ? "fake provider stored context and emitted acknowledgement" : "fake provider stored context without response" };
 	}
 

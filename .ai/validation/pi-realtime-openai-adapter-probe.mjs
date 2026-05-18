@@ -47,10 +47,12 @@ for (const [file, source] of [
   if (!allowed.has(file)) assert.doesNotMatch(source, /from "openai|openai\/realtime|openai\/resources/);
 }
 
+assert.match(openai, /\["request", "pi_state_snapshot", "pi_send_instruction"/);
+assert.match(openai, /: "request"/);
 function normalizeToolName(name) {
-  const allowed = ["pi_state_snapshot", "pi_send_instruction", "pi_wait_for_update", "pi_realtime_status", "pinotator_citations_list", "pinotator_citation_resolve"];
-  return allowed.includes(name) ? name : "pi_realtime_status";
+  const allowed = ["request", "pi_state_snapshot", "pi_send_instruction", "pi_wait_for_update", "pi_realtime_status", "pinotator_citations_list", "pinotator_citation_resolve"];
+  return allowed.includes(name) ? name : "request";
 }
-assert.equal(normalizeToolName("pi_send_instruction"), "pi_send_instruction");
-assert.equal(normalizeToolName("unknown_tool"), "pi_realtime_status");
+assert.equal(normalizeToolName("request"), "request");
+assert.equal(normalizeToolName("unknown_tool"), "request");
 console.log("PASS pi-realtime OpenAI adapter boundary/smoke contract probe");

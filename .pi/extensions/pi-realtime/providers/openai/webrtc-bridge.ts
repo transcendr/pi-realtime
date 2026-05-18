@@ -2,6 +2,7 @@ import type { DebugTraceRecorder } from "../../debug-trace";
 import type { ContextPacket, DisconnectReason, ProviderDeliveryReceipt, ProviderKind, ProviderSessionId, VoiceToolResultRecord, VoiceToolSurface } from "../../types";
 import type { ProviderConnectConfig, ProviderEventSink, RealtimeProviderAdapter, RealtimeContextPushRequest, ToolResultResponsePolicy, VoiceResponseRequest } from "../types";
 import type { WebRTCHelperServer } from "../../media/webrtc-helper/protocol";
+import { renderRealtimeUpdateEnvelope, realtimeUpdateResponseInstructions } from "../../realtime-updates";
 import { usageFromOpenAIInputTranscription, usageFromOpenAIResponseDone } from "./usage";
 import { renderContextPacket } from "./shared";
 
@@ -42,12 +43,11 @@ export class OpenAIWebRTCBridgeAdapter implements RealtimeProviderAdapter {
 	}
 
 	async pushContext(input: RealtimeContextPushRequest): Promise<ProviderDeliveryReceipt> {
-		const text = `[pi-update source=${input.source}${input.summary ? ` summary=${JSON.stringify(input.summary)}` : ""}]\n${input.text}`;
-		this.enqueue({ type: "conversation.item.create", item: { type: "message", role: "system", content: [{ type: "input_text", text }] } });
+		this.enqueue({ type: "conversation.item.create", item: { type: "message", role: "system", content: [{ type: "input_text", text: renderRealtimeUpdateEnvelope(input) }] } });
 		const wantsResponse = input.mode === "request_spoken_response";
-		this.trace?.write({ source: "provider_adapter", direction: wantsResponse ? "context_push_response_requested" : "context_push_context_only", reason: "pi_context_push", mode: input.mode, pushSource: input.source, summary: input.summary, textLength: input.text.length });
-		if (wantsResponse) await this.requestResponse({ reason: "pi_context_push" });
-		return { status: "delivered", message: wantsResponse ? "context queued and spoken response requested" : "context queued without response" };
+		this.trace?.write({ source: "provider_adapter", direction: wantsResponse ? "context_push_response_requested" : "context_push_context_only", reason: "pi_context_push", mode: input.mode, updateKind: input.kind, pushSource: input.source, summary: input.summary, textLength: input.text.length });
+		if (wantsResponse) await this.requestResponse({ reason: "pi_context_push", instructions: realtimeUpdateResponseInstructions(input.kind) });
+		return { status: "delivered", message: wantsResponse ? "backend update queued and spoken response requested" : "backend update queued without response" };
 	}
 
 	async sendTextInput(text: string): Promise<ProviderDeliveryReceipt> {
