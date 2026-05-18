@@ -156,8 +156,8 @@ export function createOpenAIRealtimeProvider(providerSessionId: ProviderSessionI
 }
 
 function normalizeToolName(name: string): VoiceToolName {
-	const allowed: VoiceToolName[] = ["request", "pi_state_snapshot", "pi_send_instruction", "pi_wait_for_update", "pi_realtime_status", "pinotator_citations_list", "pinotator_citation_resolve"];
-	return allowed.includes(name as VoiceToolName) ? name as VoiceToolName : "request";
+	const allowed: readonly string[] = ["request", "pi_state_snapshot", "pi_send_instruction", "pi_wait_for_update", "pi_realtime_status", "pinotator_citations_list", "pinotator_citation_resolve"];
+	return allowed.includes(name) ? (name as VoiceToolName) : "request";
 }
 
 function parseArgs(rawArgs: string): Record<string, unknown> {
