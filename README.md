@@ -63,7 +63,7 @@ pi --offline --no-session --no-tools -e .pi/extensions/pi-realtime/index.ts --li
 ```text
 /realtime status
 /realtime start --provider fake
-/realtime start --provider openai --model gpt-realtime-2   # requires OPENAI_API_KEY
+/realtime start --provider openai --model gpt-realtime-mini   # requires OPENAI_API_KEY
 /realtime text <message>
 /realtime openai text <message>
 /realtime openai mic start

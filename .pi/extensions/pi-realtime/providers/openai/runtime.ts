@@ -11,7 +11,7 @@ export function createOpenAIProviderRuntime(debugTraces: DebugTraceRegistry): Pr
 	const webrtcHelper = createWebRTCHelperServer();
 	return {
 		provider: "openai",
-		defaultModel() { return "gpt-realtime-2"; },
+		defaultModel() { return "gpt-realtime-mini"; },
 		assertCredentials() {
 			if (!hasOpenAIRealtimeCredentials()) throw new Error("OPENAI_API_KEY is required to start an OpenAI realtime session.");
 		},

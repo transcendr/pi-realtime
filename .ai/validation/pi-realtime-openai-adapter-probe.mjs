@@ -30,6 +30,7 @@ assert.match(openai, /input_text/);
 assert.match(openai, /requestResponse/);
 assert.match(openaiRuntime, /hasOpenAIRealtimeCredentials\(\)/);
 assert.match(openaiRuntime, /createOpenAIRealtimeProvider/);
+assert.match(openaiRuntime, /defaultModel\(\) \{ return "gpt-realtime-mini"; \}/);
 assert.doesNotMatch(runtime, /hasOpenAIRealtimeCredentials\(\)|createOpenAIRealtimeProvider/);
 assert.doesNotMatch(service, /hasOpenAIRealtimeCredentials\(\)/);
 assert.doesNotMatch(service, /createOpenAIRealtimeProvider/);
