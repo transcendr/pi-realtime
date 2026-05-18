@@ -1,7 +1,6 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { createMacOSFfmpegAudioCapture, type AudioCaptureController } from "./audio";
+import { createAudioManager, type AudioManager, type AudioManagerErrorKind } from "./audio-manager";
 import { configChanged, contextPacketSent, nextProviderSessionId, primaryChanged, providerEventObserved, sessionStarted, sessionStopped, usageObserved, usageReset, voiceToolCallReceived, voiceToolResultSent } from "./events";
-import { createFfplayAudioPlayback, type AudioPlaybackController } from "./playback";
 import { createDebugTraceRegistry, describeProviderEvent } from "./debug-trace";
 import { defaultVoiceToolSurface, voiceSystemPrompt } from "./prompt";
 import { buildCitationPacket, buildStatePacket, buildToolSurfacePacket, nextContextRevision } from "./state-packets";
@@ -11,7 +10,9 @@ import { createDefaultProviderRuntimeRegistry, type ProviderRuntimeRegistry } fr
 import type { ProviderEventSink, RealtimeProviderAdapter } from "./providers/types";
 import type { CitationDeck, ContextPacket, NormalizedProviderEvent, ProviderKind, ProviderMediaMode, ProviderPreferences, ProviderSessionId, RealtimeState, VoiceInstructionInput, VoiceToolCallRecord, VoiceToolName, VoiceToolResultRecord, VoiceToolSurface } from "./types";
 import type { Store } from "./store";
+import { executeVoiceTool } from "./tools";
 import { aggregateUsage, renderUsageSummary } from "./usage";
+import { renderStatusText } from "./view";
 export type Service = {
 	refresh(ctx: ExtensionContext): void;
 	state(): RealtimeState;
@@ -55,8 +56,7 @@ class RealtimeService implements Service {
 	private readonly surface = defaultVoiceToolSurface();
 	private readonly adapters = new Map<ProviderSessionId, RealtimeProviderAdapter>();
 	private readonly fakeAdapters = new Map<ProviderSessionId, FakeRealtimeProviderAdapter>();
-	private readonly audioCaptures = new Map<ProviderSessionId, AudioCaptureController>();
-	private readonly audioPlaybacks = new Map<ProviderSessionId, AudioPlaybackController>();
+	private readonly audioManager: AudioManager = createAudioManager((providerSessionId, kind, error) => this.handleAudioError(providerSessionId, kind, error));
 	private readonly rawEchoWarnings = new Set<ProviderSessionId>();
 	private readonly debugTraces = createDebugTraceRegistry();
 	private readonly providers: ProviderRuntimeRegistry = createDefaultProviderRuntimeRegistry(this.debugTraces);
@@ -65,7 +65,7 @@ class RealtimeService implements Service {
 	refresh(ctx: ExtensionContext): void { this.currentCtx = ctx; this.store.hydrate(ctx); }
 	state(): RealtimeState { return this.store.state(); }
 	toolSurface(): VoiceToolSurface { return this.surface; }
-	statusText(): string { return status(this.store.state()); }
+	statusText(): string { return renderStatusText(this.store.state()); }
 	defaultModelFor(provider: ProviderKind): string { return this.requireProviderRuntime(provider).defaultModel(); }
 	setPrimary(providerSessionId: ProviderSessionId | null): void { this.store.append(primaryChanged(providerSessionId)); }
 	observeCitationDeck(ctx: ExtensionContext): CitationDeck { return this.controlPlane.observeCitations(ctx); }
@@ -80,51 +80,29 @@ class RealtimeService implements Service {
 		const adapter = this.adapters.get(providerSessionId);
 		if (!adapter) throw new Error(`No live provider adapter for ${providerSessionId}`);
 		this.warnIfRawEchoRisk(providerSessionId, adapter);
-		if (this.audioCaptures.has(providerSessionId)) throw new Error(`Microphone is already running for ${providerSessionId}`);
-		const capture = createMacOSFfmpegAudioCapture();
-		this.audioCaptures.set(providerSessionId, capture);
-		await capture.start((chunk) => adapter.sendAudioInput(chunk).then(() => undefined), (error) => this.handleMicrophoneError(providerSessionId, error));
+		await this.audioManager.startMicrophone(providerSessionId, adapter);
 	}
 	async stopMicrophone(providerSessionId?: ProviderSessionId): Promise<void> {
-		const ids = providerSessionId ? [providerSessionId] : [...this.audioCaptures.keys()];
-		for (const id of ids) {
-			const capture = this.audioCaptures.get(id);
-			if (!capture) continue;
-			await capture.stop();
-			this.audioCaptures.delete(id);
-		}
+		await this.audioManager.stopMicrophone(providerSessionId);
 	}
 
 	microphoneStatus(): string {
-		if (this.audioCaptures.size === 0) return "microphone: idle";
-		return ["microphone:", ...[...this.audioCaptures].map(([id, capture]) => `- ${id} ${capture.status}`)].join("\n");
+		return this.audioManager.microphoneStatus();
 	}
 
 	async startAudioPlayback(providerSessionId: ProviderSessionId): Promise<void> {
 		const adapter = this.adapters.get(providerSessionId);
 		if (!adapter) throw new Error(`No live provider adapter for ${providerSessionId}`);
 		this.warnIfRawEchoRisk(providerSessionId, adapter);
-		if (this.audioPlaybacks.has(providerSessionId)) return;
-		const playback = createFfplayAudioPlayback();
-		this.audioPlaybacks.set(providerSessionId, playback);
-		await playback.start((error) => this.handleAudioPlaybackError(providerSessionId, error));
-		await adapter.setAudioOutputEnabled(true);
+		await this.audioManager.startAudioPlayback(providerSessionId, adapter);
 	}
 
 	async stopAudioPlayback(providerSessionId?: ProviderSessionId): Promise<void> {
-		const ids = providerSessionId ? [providerSessionId] : [...this.audioPlaybacks.keys()];
-		for (const id of ids) {
-			await this.adapters.get(id)?.setAudioOutputEnabled(false);
-			const playback = this.audioPlaybacks.get(id);
-			if (!playback) continue;
-			await playback.stop();
-			this.audioPlaybacks.delete(id);
-		}
+		await this.audioManager.stopAudioPlayback(providerSessionId, (id) => this.adapters.get(id));
 	}
 
 	audioPlaybackStatus(): string {
-		if (this.audioPlaybacks.size === 0) return "audio playback: idle";
-		return ["audio playback:", ...[...this.audioPlaybacks].map(([id, playback]) => `- ${id} ${playback.status}`)].join("\n");
+		return this.audioManager.audioPlaybackStatus();
 	}
 
 	usageText(providerSessionId?: ProviderSessionId, details = false): string {
@@ -232,8 +210,7 @@ class RealtimeService implements Service {
 	}
 
 	async shutdown(): Promise<void> {
-		await this.stopMicrophone();
-		await this.stopAudioPlayback();
+		await this.audioManager.shutdown((providerSessionId) => this.adapters.get(providerSessionId));
 		await this.stopSessionMedia();
 		for (const session of this.store.state().sessions.values()) if (session.status === "active" || session.status === "starting") await this.stopSession(session.providerSessionId, "shutdown");
 		this.currentCtx = undefined;
@@ -295,42 +272,18 @@ class RealtimeService implements Service {
 		this.currentCtx?.ui.notify(warning, "warning");
 	}
 
-	private handleMicrophoneError(providerSessionId: ProviderSessionId, error: Error): void {
-		this.audioCaptures.delete(providerSessionId);
-		this.currentCtx?.ui.notify(`Realtime microphone error for ${providerSessionId}: ${error.message}`, "warning");
+	private handleAudioError(providerSessionId: ProviderSessionId, kind: AudioManagerErrorKind, error: Error): void {
+		const label = kind === "microphone" ? "microphone" : "audio playback";
+		this.currentCtx?.ui.notify(`Realtime ${label} error for ${providerSessionId}: ${error.message}`, "warning");
 	}
 
 	private handleProviderAudio(chunk: { providerSessionId: ProviderSessionId; audio: Buffer }): void {
-		this.audioPlaybacks.get(chunk.providerSessionId)?.write(chunk.audio);
-	}
-
-	private handleAudioPlaybackError(providerSessionId: ProviderSessionId, error: Error): void {
-		this.audioPlaybacks.delete(providerSessionId);
-		this.currentCtx?.ui.notify(`Realtime audio playback error for ${providerSessionId}: ${error.message}`, "warning");
+		this.audioManager.writeProviderAudio(chunk.providerSessionId, chunk.audio);
 	}
 
 	private async executeDirectTool(call: VoiceToolCallRecord): Promise<void> {
-		const resultText = await this.directToolResult(call, this.currentCtx);
+		const resultText = await executeVoiceTool({ call, ctx: this.currentCtx, state: this.store.state(), controlPlane: this.controlPlane });
 		await this.recordToolResult({ voiceToolCallId: call.voiceToolCallId, providerSessionId: call.providerSessionId, status: "sent", resultText, at: Date.now() });
-	}
-
-	private async directToolResult(call: VoiceToolCallRecord, ctx: ExtensionContext | undefined): Promise<string> {
-		if (call.name === "pi_wait_for_update") return "Acknowledged. Waiting for more user input or Pi state changes.";
-		if (call.name === "pi_realtime_status") return status(this.store.state());
-		if (!ctx) return "No active Pi context is available for this fake provider event.";
-		if (call.name === "pi_state_snapshot") return JSON.stringify(buildStatePacket(this.store.state(), this.controlPlane.currentTarget(ctx), nextContextRevision(this.store.state(), call.providerSessionId, "pi_state")));
-		if (call.name === "pinotator_citations_list") return JSON.stringify(this.controlPlane.observeCitations(ctx));
-		if (call.name === "pinotator_citation_resolve") return JSON.stringify(resolveCitation(this.controlPlane.observeCitations(ctx), stringArg(call.arguments.ref)));
-		if (call.name === "pi_send_instruction") return this.sendInstructionFromTool(call, ctx);
-		return `Unsupported direct voice tool: ${call.name}`;
-	}
-
-	private async sendInstructionFromTool(call: VoiceToolCallRecord, ctx: ExtensionContext): Promise<string> {
-		const instructionText = stringArg(call.arguments.instruction) || stringArg(call.arguments.text);
-		if (!instructionText) return "Rejected pi_send_instruction: missing required non-empty instruction text. Ask the user for clarification or call pi_send_instruction again with the exact Pi action requested.";
-		const deck = this.controlPlane.observeCitations(ctx);
-		await this.controlPlane.instructionSink.sendInstruction({ instructionId: call.voiceToolCallId, provider: call.provider, providerSessionId: call.providerSessionId, voiceToolCallId: call.voiceToolCallId, providerToolCallId: call.providerToolCallId, target: this.controlPlane.currentTarget(ctx), urgency: call.arguments.urgency === "interrupt" ? "interrupt" : "normal", instructionText, userUtteranceSummary: stringArg(call.arguments.userUtteranceSummary), citedCitationIds: stringArrayArg(call.arguments.citedCitationIds), citationDeckRevision: deck.revision });
-		return "Submitted instruction to Pi.";
 	}
 
 	private requireFakeAdapter(providerSessionId: ProviderSessionId): FakeRealtimeProviderAdapter {
@@ -342,26 +295,4 @@ class RealtimeService implements Service {
 
 export function systemPromptFor(surface: VoiceToolSurface = defaultVoiceToolSurface()): string {
 	return voiceSystemPrompt(surface);
-}
-
-function status(state: RealtimeState): string {
-	const MAX_VISIBLE_SESSIONS = 6;
-	const sessions = [...state.sessions.values()];
-	if (sessions.length === 0) return "pi-realtime: no provider sessions";
-	const active = sessions.filter((session) => session.status === "active" || session.status === "starting");
-	const header = `pi-realtime: ${active.length}/${sessions.length} active provider session${sessions.length === 1 ? "" : "s"}`;
-	const details = sessions.slice(-MAX_VISIBLE_SESSIONS).map((session) => `${state.primaryProviderSessionId === session.providerSessionId ? "*" : "-"} ${session.providerSessionId} ${session.provider}/${session.model} ${session.status}${session.lastError ? ` error=${session.lastError}` : ""}`);
-	return [header, ...details].join("\n");
-}
-
-function resolveCitation(deck: CitationDeck, ref: string): unknown {
-	return deck.active.find((item) => item.displayRef === ref || item.alias === ref || item.citationId === ref || item.displayRef === `[${ref}]`) ?? { error: `Citation not found: ${ref}`, deckRevision: deck.revision };
-}
-
-function stringArg(value: unknown): string {
-	return typeof value === "string" ? value : "";
-}
-
-function stringArrayArg(value: unknown): string[] {
-	return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }

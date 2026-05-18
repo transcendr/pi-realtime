@@ -80,3 +80,12 @@ export class FakeRealtimeProviderAdapter implements RealtimeProviderAdapter {
 export function createFakeRealtimeProvider(providerSessionId: ProviderSessionId): FakeRealtimeProviderAdapter {
 	return new FakeRealtimeProviderAdapter(providerSessionId);
 }
+
+export function createFakeProviderRuntime() {
+	return {
+		provider: "fake" as const,
+		defaultModel() { return "fake-realtime"; },
+		assertCredentials() { return; },
+		createAdapter(input: { providerSessionId: ProviderSessionId }) { return createFakeRealtimeProvider(input.providerSessionId); },
+	};
+}
