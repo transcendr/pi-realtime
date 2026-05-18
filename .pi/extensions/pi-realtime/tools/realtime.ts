@@ -1,8 +1,8 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { ControlPlane } from "./control-plane";
-import { buildStatePacket, nextContextRevision } from "./state-packets";
-import type { CitationDeck, RealtimeState, VoiceToolCallRecord } from "./types";
-import { renderStatusText } from "./view";
+import type { ControlPlane } from "../control-plane";
+import { buildStatePacket, nextContextRevision } from "../state-packets";
+import type { CitationDeck, RealtimeState, VoiceToolCallRecord } from "../types";
+import { renderStatusText } from "../view";
 
 export async function executeVoiceTool(input: { call: VoiceToolCallRecord; ctx: ExtensionContext | undefined; state: RealtimeState; controlPlane: ControlPlane }): Promise<string> {
 	const { call, ctx, state, controlPlane } = input;

@@ -20,6 +20,7 @@ type HelperSession = {
 	outbox: WebRTCHelperOutboundEvent[];
 	seq: number;
 	lastSeenAt: number;
+	deliveredOutboxId: number;
 	outboxPollTrace: OutboxPollTraceState;
 };
 
@@ -59,7 +60,7 @@ class LocalWebRTCHelperServer implements WebRTCHelperServer {
 
 	registerSession(config: WebRTCHelperRegistrationConfig, sink: WebRTCHelperSink): void {
 		const { createClientSecret, normalizeUsageEvent, trace, ...sessionConfig } = config;
-		const session = { config: { ...sessionConfig, debugTracePath: trace?.path }, createClientSecret, normalizeUsageEvent, trace, sink, outbox: [], seq: 0, lastSeenAt: Date.now(), outboxPollTrace: createOutboxPollTraceState() };
+		const session = { config: { ...sessionConfig, debugTracePath: trace?.path }, createClientSecret, normalizeUsageEvent, trace, sink, outbox: [], seq: 0, lastSeenAt: Date.now(), deliveredOutboxId: 0, outboxPollTrace: createOutboxPollTraceState() };
 		this.sessions.set(config.providerSessionId, session);
 		trace?.write({ source: "helper_server", direction: "lifecycle", action: "registerSession", model: config.model });
 	}
@@ -123,7 +124,7 @@ class LocalWebRTCHelperServer implements WebRTCHelperServer {
 	private async handleSessionRoute(req: IncomingMessage, res: ServerResponse, url: URL, route: { providerSessionId: ProviderSessionId; action: string }): Promise<void> {
 		const session = this.requireSession(route.providerSessionId);
 		session.lastSeenAt = Date.now();
-		if (req.method === "GET" && route.action === "config") return this.respond(res, 200, session.config);
+		if (req.method === "GET" && route.action === "config") return this.respond(res, 200, { ...session.config, resumeOutboxAfter: session.deliveredOutboxId });
 		if (req.method === "POST" && route.action === "client-secret") return this.respond(res, 200, await session.createClientSecret());
 		if (req.method === "POST" && route.action === "event") return this.handleInboundEvent(req, res, session);
 		if (req.method === "GET" && route.action === "outbox") return this.respondOutbox(res, url, session);
@@ -134,6 +135,11 @@ class LocalWebRTCHelperServer implements WebRTCHelperServer {
 		const inbound = await readJson<WebRTCHelperInboundEvent>(req);
 		if (inbound.type === "trace") {
 			session.trace?.write({ source: "browser", ...inbound.trace, providerEventId: inbound.providerEventId });
+			return this.respond(res, 200, { ok: true });
+		}
+		if (inbound.type === "outbox_ack") {
+			session.deliveredOutboxId = Math.max(session.deliveredOutboxId, inbound.outboxId);
+			session.trace?.write({ source: "helper_server", direction: "outbox_ack", outboxId: inbound.outboxId, deliveredOutboxId: session.deliveredOutboxId });
 			return this.respond(res, 200, { ok: true });
 		}
 		session.trace?.write({ source: "helper_server", direction: "inbound_normalize", inboundType: inbound.type, providerEventId: inbound.providerEventId });
@@ -148,8 +154,9 @@ class LocalWebRTCHelperServer implements WebRTCHelperServer {
 	private respondOutbox(res: ServerResponse, url: URL, session: HelperSession): void {
 		const after = Number(url.searchParams.get("after") ?? "0");
 		const events = session.outbox.filter((event) => event.id > after);
-		this.traceOutboxPoll(session, after, events.map((event) => event.id));
-		this.respond(res, 200, { events });
+		const returnedIds = events.map((event) => event.id);
+		this.traceOutboxPoll(session, after, returnedIds);
+		this.respond(res, 200, { events, resumeOutboxAfter: session.deliveredOutboxId });
 	}
 
 	private traceOutboxPoll(session: HelperSession, after: number, returnedIds: readonly number[]): void {

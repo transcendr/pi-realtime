@@ -7,10 +7,10 @@ import { buildCitationPacket, buildStatePacket, buildToolSurfacePacket, nextCont
 import type { ControlPlane } from "./control-plane";
 import type { FakeRealtimeProviderAdapter } from "./providers/fake";
 import { createDefaultProviderRuntimeRegistry, type ProviderRuntimeRegistry } from "./providers/runtime";
-import type { ProviderEventSink, RealtimeProviderAdapter } from "./providers/types";
-import type { CitationDeck, ContextPacket, NormalizedProviderEvent, ProviderKind, ProviderMediaMode, ProviderPreferences, ProviderSessionId, RealtimeState, VoiceInstructionInput, VoiceToolCallRecord, VoiceToolName, VoiceToolResultRecord, VoiceToolSurface } from "./types";
+import type { ProviderEventSink, RealtimeProviderAdapter, ToolResultResponsePolicy } from "./providers/types";
+import type { CitationDeck, ContextPacket, NormalizedProviderEvent, ProviderKind, ProviderMediaMode, ProviderPreferences, ProviderSessionId, RealtimeContextPushInput, RealtimeState, VoiceInstructionInput, VoiceToolCallRecord, VoiceToolName, VoiceToolResultRecord, VoiceToolSurface } from "./types";
 import type { Store } from "./store";
-import { executeVoiceTool } from "./tools";
+import { executeVoiceTool } from "./tools/realtime";
 import { aggregateUsage, renderUsageSummary } from "./usage";
 import { renderStatusText } from "./view";
 export type Service = {
@@ -25,9 +25,10 @@ export type Service = {
 	observeCitationDeck(ctx: ExtensionContext): CitationDeck;
 	buildPackets(ctx: ExtensionContext, providerSessionId: ProviderSessionId): ContextPacket[];
 	recordToolCall(call: VoiceToolCallRecord): void;
-	recordToolResult(result: VoiceToolResultRecord): Promise<void>;
+	recordToolResult(result: VoiceToolResultRecord, policy?: ToolResultResponsePolicy): Promise<void>;
 	submitInstruction(input: VoiceInstructionInput): Promise<void>;
 	sendTextInput(providerSessionId: ProviderSessionId, text: string): Promise<void>;
+	pushRealtimeContext(input: RealtimeContextPushInput): Promise<string>;
 	startMicrophone(providerSessionId: ProviderSessionId): Promise<void>;
 	stopMicrophone(providerSessionId?: ProviderSessionId): Promise<void>;
 	microphoneStatus(): string;
@@ -75,6 +76,18 @@ class RealtimeService implements Service {
 		const adapter = this.adapters.get(providerSessionId);
 		if (!adapter) throw new Error(`No live provider adapter for ${providerSessionId}`);
 		await adapter.sendTextInput(text);
+	}
+
+	async pushRealtimeContext(input: RealtimeContextPushInput): Promise<string> {
+		const text = input.text.trim();
+		if (!text) throw new Error("pi_realtime_send_text requires non-empty text.");
+		const providerSessionId = input.providerSessionId ?? this.store.state().primaryProviderSessionId;
+		if (!providerSessionId) throw new Error("No active realtime session is available for pi_realtime_send_text.");
+		const adapter = this.adapters.get(providerSessionId);
+		if (!adapter) throw new Error(`No live provider adapter for ${providerSessionId}`);
+		const receipt = await adapter.pushContext({ text, mode: input.mode, source: input.source, summary: input.summary });
+		this.debugTraces.recorderFor(providerSessionId)?.write({ source: "service", direction: "pi_realtime_context_push", providerSessionId, mode: input.mode, pushSource: input.source, summary: input.summary, textLength: text.length, responseRequested: input.mode === "request_spoken_response", receiptStatus: receipt.status });
+		return `${receipt.message ?? "Realtime context push accepted"} (${providerSessionId}).`;
 	}
 	async startMicrophone(providerSessionId: ProviderSessionId): Promise<void> {
 		const adapter = this.adapters.get(providerSessionId);
@@ -195,9 +208,9 @@ class RealtimeService implements Service {
 		return [buildToolSurfacePacket(this.surface, target), buildStatePacket(state, target, nextContextRevision(state, providerSessionId, "pi_state")), buildCitationPacket(citationDeck, target)];
 	}
 
-	async recordToolResult(result: VoiceToolResultRecord): Promise<void> {
+	async recordToolResult(result: VoiceToolResultRecord, policy: ToolResultResponsePolicy = "none"): Promise<void> {
 		this.store.append(voiceToolResultSent(result));
-		await this.adapters.get(result.providerSessionId)?.sendToolResult(result);
+		await this.adapters.get(result.providerSessionId)?.sendToolResult(result, policy);
 	}
 
 	simulateFakeTranscript(providerSessionId: ProviderSessionId, text: string, final = true): void {
@@ -283,7 +296,7 @@ class RealtimeService implements Service {
 
 	private async executeDirectTool(call: VoiceToolCallRecord): Promise<void> {
 		const resultText = await executeVoiceTool({ call, ctx: this.currentCtx, state: this.store.state(), controlPlane: this.controlPlane });
-		await this.recordToolResult({ voiceToolCallId: call.voiceToolCallId, providerSessionId: call.providerSessionId, status: "sent", resultText, at: Date.now() });
+		await this.recordToolResult({ voiceToolCallId: call.voiceToolCallId, providerSessionId: call.providerSessionId, status: "sent", resultText, at: Date.now() }, responsePolicyForTool(call));
 	}
 
 	private requireFakeAdapter(providerSessionId: ProviderSessionId): FakeRealtimeProviderAdapter {
@@ -291,6 +304,12 @@ class RealtimeService implements Service {
 		if (!adapter) throw new Error(`No live fake provider adapter for ${providerSessionId}`);
 		return adapter;
 	}
+}
+
+function responsePolicyForTool(call: VoiceToolCallRecord): ToolResultResponsePolicy {
+	if (call.name === "pi_send_instruction" || call.name === "pi_wait_for_update") return "none";
+	if (call.name === "pi_state_snapshot" || call.name === "pinotator_citations_list" || call.name === "pinotator_citation_resolve" || call.name === "pi_realtime_status") return "none";
+	return "none";
 }
 
 export function systemPromptFor(surface: VoiceToolSurface = defaultVoiceToolSurface()): string {

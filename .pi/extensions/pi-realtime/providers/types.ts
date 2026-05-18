@@ -1,4 +1,4 @@
-import type { ContextPacket, DisconnectReason, NormalizedProviderEvent, ProviderDeliveryReceipt, ProviderKind, ProviderSessionId, VoiceToolResultRecord, VoiceToolSurface } from "../types";
+import type { ContextPacket, DisconnectReason, NormalizedProviderEvent, ProviderDeliveryReceipt, ProviderKind, ProviderSessionId, RealtimePushMode, RealtimePushSource, VoiceToolResultRecord, VoiceToolSurface } from "../types";
 
 export type ProviderCapabilityPreferences = {
 	preferPassiveContext: boolean;
@@ -18,8 +18,17 @@ export type ProviderConnectConfig = {
 };
 
 export type VoiceResponseRequest = {
-	reason: "tool_result" | "context_update" | "manual";
+	reason: "tool_result" | "tool_result_continue" | "tool_result_final_ack" | "context_update" | "manual" | "valid_transcript" | "pi_context_push";
 	instructions?: string;
+};
+
+export type ToolResultResponsePolicy = "none" | "continue" | "final_ack";
+
+export type RealtimeContextPushRequest = {
+	text: string;
+	mode: RealtimePushMode;
+	source: RealtimePushSource;
+	summary?: string;
 };
 
 export type ProviderEventSink = {
@@ -35,8 +44,9 @@ export type RealtimeProviderAdapter = {
 	disconnect(reason: DisconnectReason): Promise<void>;
 	updateContext(packet: ContextPacket): Promise<ProviderDeliveryReceipt>;
 	updateToolSurface(surface: VoiceToolSurface): Promise<void>;
-	sendToolResult(result: VoiceToolResultRecord): Promise<void>;
+	sendToolResult(result: VoiceToolResultRecord, policy?: ToolResultResponsePolicy): Promise<void>;
 	sendTextInput(text: string): Promise<ProviderDeliveryReceipt>;
+	pushContext(input: RealtimeContextPushRequest): Promise<ProviderDeliveryReceipt>;
 	sendAudioInput(audio: Buffer): Promise<ProviderDeliveryReceipt>;
 	setAudioOutputEnabled(enabled: boolean): Promise<ProviderDeliveryReceipt>;
 	requestResponse(request: VoiceResponseRequest): Promise<void>;

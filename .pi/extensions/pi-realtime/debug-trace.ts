@@ -112,6 +112,12 @@ export function describeProviderEvent(event: NormalizedProviderEvent): Record<st
 		description.totalTokens = event.observation.totalTokens;
 		description.responseId = event.observation.responseId;
 		description.itemId = event.observation.itemId;
+		description.inputTextTokens = event.observation.input.textTokens;
+		description.inputAudioTokens = event.observation.input.audioTokens;
+		description.cachedInputTextTokens = event.observation.input.cachedTextTokens;
+		description.cachedInputAudioTokens = event.observation.input.cachedAudioTokens;
+		description.outputTextTokens = event.observation.output.textTokens;
+		description.outputAudioTokens = event.observation.output.audioTokens;
 	}
 	return description;
 }

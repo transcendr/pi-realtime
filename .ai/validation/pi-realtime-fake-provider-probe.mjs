@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 
 const fakeSource = readFileSync(".pi/extensions/pi-realtime/providers/fake.ts", "utf8");
 const serviceSource = readFileSync(".pi/extensions/pi-realtime/service.ts", "utf8");
-const toolsSource = readFileSync(".pi/extensions/pi-realtime/tools.ts", "utf8");
+const toolsSource = readFileSync(".pi/extensions/pi-realtime/tools/realtime.ts", "utf8");
 const fakeRuntimeSource = readFileSync(".pi/extensions/pi-realtime/providers/fake.ts", "utf8");
 const runtimeSource = readFileSync(".pi/extensions/pi-realtime/providers/runtime.ts", "utf8");
 const commandsSource = readFileSync(".pi/extensions/pi-realtime/commands.ts", "utf8");

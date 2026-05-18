@@ -11,6 +11,10 @@ let lastOutboxId = 0;
 let pollTimer;
 let pollInFlight = false;
 
+function outboxCursorStorageKey() {
+	return `pi-realtime:${providerSessionId}:lastOutboxId`;
+}
+
 startButton.addEventListener("click", () => start().catch((error) => reportError(error)));
 start().catch((error) => reportError(error));
 
@@ -18,6 +22,7 @@ async function start() {
 	setStatus("Connecting…", "warn");
 	cleanupCurrentConnection();
 	const config = await json(`/pi-realtime/openai/${encodeURIComponent(providerSessionId)}/config`);
+	lastOutboxId = initialOutboxCursor(config);
 	const secret = await json(`/pi-realtime/openai/${encodeURIComponent(providerSessionId)}/client-secret`, { method: "POST" });
 	const pc = new RTCPeerConnection();
 	currentPc = pc;
@@ -74,11 +79,7 @@ function logAudioSettings(track) {
 function handleRealtimeEvent(event) {
 	traceRealtimeEvent("openai_inbound", event);
 	if (event.type === "response.function_call_arguments.done") return postEvent({ type: "tool_call", providerEventId: event.event_id, call: { voiceToolCallId: event.call_id, providerToolCallId: event.call_id, name: event.name, arguments: parseArgs(event.arguments) } });
-	if (event.type === "conversation.item.input_audio_transcription.completed") {
-		logUsage("input transcription", event.usage);
-		postEvent({ type: "usage", source: "input_transcription", providerEventId: event.event_id, realtimeEvent: event }).catch((error) => log(`usage post failed: ${error.message}`));
-		return postEvent({ type: "user_transcript", providerEventId: event.event_id, text: event.transcript || "", final: true });
-	}
+	if (event.type === "conversation.item.input_audio_transcription.completed") return handleInputAudioTranscription(event);
 	if (event.type === "response.output_audio_transcript.done") return postEvent({ type: "assistant_transcript", providerEventId: event.event_id, text: event.transcript || "", final: true });
 	if (event.type === "response.output_text.done") return postEvent({ type: "assistant_transcript", providerEventId: event.event_id, text: event.text || "", final: true });
 	if (event.type === "input_audio_buffer.speech_started") return postEvent({ type: "turn_signal", providerEventId: event.event_id, signal: "speech_started" });
@@ -101,21 +102,64 @@ async function pollOutbox() {
 		outboxPollTracer.record(after, returnedIds);
 		for (const item of result.events || []) {
 			lastOutboxId = Math.max(lastOutboxId, item.id);
+			storeOutboxCursor(lastOutboxId);
 			traceRealtimeEvent("openai_outbound_from_outbox", item.event, { outboxId: item.id });
 			dc.send(JSON.stringify(item.event));
+			postEvent({ type: "outbox_ack", outboxId: item.id }, { log: false }).catch((error) => log(`outbox ack failed: ${error.message}`));
 		}
 	} finally {
 		pollInFlight = false;
 	}
 }
 
+function initialOutboxCursor(config) {
+	const persisted = Number(sessionStorage.getItem(outboxCursorStorageKey()) || "0");
+	const server = Number(config.resumeOutboxAfter || 0);
+	const cursor = Math.max(Number.isFinite(persisted) ? persisted : 0, Number.isFinite(server) ? server : 0);
+	storeOutboxCursor(cursor);
+	return cursor;
+}
+
+function storeOutboxCursor(value) {
+	sessionStorage.setItem(outboxCursorStorageKey(), String(value));
+}
+
 function sendContext(packet) {
 	sendRealtime({ type: "conversation.item.create", item: { type: "message", role: "system", content: [{ type: "input_text", text: `[pi-realtime:${packet.channel}:rev-${packet.revision}] ${packet.summary}\n\n${packet.sections.map((section) => `${section.title}\n${section.text}`).join("\n\n")}` }] } });
 }
 
-function sendRealtime(event) {
+function handleInputAudioTranscription(event) {
+	const transcript = event.transcript || "";
+	logUsage("input transcription", event.usage);
+	postEvent({ type: "usage", source: "input_transcription", providerEventId: event.event_id, realtimeEvent: event }).catch((error) => log(`usage post failed: ${error.message}`));
+	postEvent({ type: "user_transcript", providerEventId: event.event_id, text: transcript, final: true }).catch((error) => log(`transcript post failed: ${error.message}`));
+	if (!transcript.trim()) {
+		trace("response_suppressed", { reason: "empty_transcript", providerEventId: event.event_id, itemId: event.item_id, transcriptTextLength: transcript.length });
+		return;
+	}
+	if (!isTranscriptActionable(transcript)) {
+		trace("response_suppressed", { reason: "low_information_transcript", providerEventId: event.event_id, itemId: event.item_id, transcriptTextLength: transcript.length, lexicalLength: lexicalContentLength(transcript) });
+		return;
+	}
+	requestResponse("valid_transcript", event.event_id);
+}
+
+function isTranscriptActionable(transcript) {
+	return lexicalContentLength(transcript) >= 4;
+}
+
+function lexicalContentLength(transcript) {
+	return transcript.replace(/[\s\p{P}\p{S}]/gu, "").length;
+}
+
+function requestResponse(reason, providerEventId) {
+	sendRealtime({ type: "response.create", response: { output_modalities: ["audio"] } }, { label: "openai_outbound_response_create", reason, providerEventId });
+}
+
+function sendRealtime(event, traceOptions = {}) {
 	if (!dc || dc.readyState !== "open") return;
-	traceRealtimeEvent("openai_outbound_direct", event);
+	const { label = "openai_outbound_direct", ...extra } = traceOptions;
+	traceRealtimeEvent(label, event, extra);
 	dc.send(JSON.stringify(event));
 }
 

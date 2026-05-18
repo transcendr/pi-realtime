@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 
 const packetSource = readFileSync(".pi/extensions/pi-realtime/state-packets.ts", "utf8");
 const serviceSource = readFileSync(".pi/extensions/pi-realtime/service.ts", "utf8");
-const toolsSource = readFileSync(".pi/extensions/pi-realtime/tools.ts", "utf8");
+const toolsSource = readFileSync(".pi/extensions/pi-realtime/tools/realtime.ts", "utf8");
 
 assert.match(packetSource, /buildCitationDeckFromBranch/);
 assert.match(packetSource, /pinotator\.citations/);

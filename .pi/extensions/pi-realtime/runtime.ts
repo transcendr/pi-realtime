@@ -4,6 +4,7 @@ import { filterRealtimeContextMessages } from "./context";
 import { createControlPlane } from "./control-plane";
 import { createService, type Service } from "./service";
 import { createStore, type Store } from "./store";
+import { registerRealtimeModelTools } from "./tools/pi";
 import { renderWidget, statusText } from "./view";
 
 const STATUS_KEY = "pi-realtime";
@@ -24,6 +25,8 @@ export function registerPiRealtime(pi: ExtensionAPI): void {
 		},
 		getArgumentCompletions: async () => realtimeCompletions().map((value) => ({ value, label: value })),
 	});
+
+	registerRealtimeModelTools(pi, service);
 
 	pi.registerCommand("pi-realtime", {
 		description: "Alias for /realtime",

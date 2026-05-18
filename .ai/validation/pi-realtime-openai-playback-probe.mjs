@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 const playback = readFileSync(".pi/extensions/pi-realtime/playback.ts", "utf8");
 const openai = readFileSync(".pi/extensions/pi-realtime/providers/openai/index.ts", "utf8");
+const sessionConfig = readFileSync(".pi/extensions/pi-realtime/providers/openai/session-config.ts", "utf8");
 const service = readFileSync(".pi/extensions/pi-realtime/service.ts", "utf8");
 const audioManager = readFileSync(".pi/extensions/pi-realtime/audio-manager.ts", "utf8");
 const commands = readFileSync(".pi/extensions/pi-realtime/commands.ts", "utf8");
@@ -23,7 +24,7 @@ assert.match(providerTypes, /setAudioOutputEnabled\(enabled: boolean\)/);
 assert.match(openai, /response\.output_audio\.delta/);
 assert.match(openai, /Buffer\.from\(event\.delta, "base64"\)/);
 assert.match(openai, /response\.output_audio_transcript\.done/);
-assert.match(openai, /voice: "marin"/);
+assert.match(sessionConfig, /voice: input\.voice \?\? "marin"/);
 
 assert.match(service, /startAudioPlayback/);
 assert.match(service, /stopAudioPlayback/);

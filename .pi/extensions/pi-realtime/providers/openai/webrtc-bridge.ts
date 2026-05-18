@@ -1,6 +1,6 @@
 import type { DebugTraceRecorder } from "../../debug-trace";
 import type { ContextPacket, DisconnectReason, ProviderDeliveryReceipt, ProviderKind, ProviderSessionId, VoiceToolResultRecord, VoiceToolSurface } from "../../types";
-import type { ProviderConnectConfig, ProviderEventSink, RealtimeProviderAdapter, VoiceResponseRequest } from "../types";
+import type { ProviderConnectConfig, ProviderEventSink, RealtimeProviderAdapter, RealtimeContextPushRequest, ToolResultResponsePolicy, VoiceResponseRequest } from "../types";
 import type { WebRTCHelperServer } from "../../media/webrtc-helper/protocol";
 import { usageFromOpenAIInputTranscription, usageFromOpenAIResponseDone } from "./usage";
 import { renderContextPacket } from "./shared";
@@ -32,9 +32,22 @@ export class OpenAIWebRTCBridgeAdapter implements RealtimeProviderAdapter {
 		return;
 	}
 
-	async sendToolResult(result: VoiceToolResultRecord): Promise<void> {
+	async sendToolResult(result: VoiceToolResultRecord, policy: ToolResultResponsePolicy = "none"): Promise<void> {
 		this.enqueue({ type: "conversation.item.create", item: { type: "function_call_output", call_id: result.voiceToolCallId, output: result.resultText } });
-		await this.requestResponse({ reason: "tool_result" });
+		if (policy === "none") {
+			this.trace?.write({ source: "provider_adapter", direction: "response_create_suppressed", reason: "tool_result_suppressed", voiceToolCallId: result.voiceToolCallId });
+			return;
+		}
+		await this.requestResponse({ reason: policy === "final_ack" ? "tool_result_final_ack" : "tool_result_continue" });
+	}
+
+	async pushContext(input: RealtimeContextPushRequest): Promise<ProviderDeliveryReceipt> {
+		const text = `[pi-update source=${input.source}${input.summary ? ` summary=${JSON.stringify(input.summary)}` : ""}]\n${input.text}`;
+		this.enqueue({ type: "conversation.item.create", item: { type: "message", role: "system", content: [{ type: "input_text", text }] } });
+		const wantsResponse = input.mode === "request_spoken_response";
+		this.trace?.write({ source: "provider_adapter", direction: wantsResponse ? "context_push_response_requested" : "context_push_context_only", reason: "pi_context_push", mode: input.mode, pushSource: input.source, summary: input.summary, textLength: input.text.length });
+		if (wantsResponse) await this.requestResponse({ reason: "pi_context_push" });
+		return { status: "delivered", message: wantsResponse ? "context queued and spoken response requested" : "context queued without response" };
 	}
 
 	async sendTextInput(text: string): Promise<ProviderDeliveryReceipt> {
@@ -52,6 +65,7 @@ export class OpenAIWebRTCBridgeAdapter implements RealtimeProviderAdapter {
 	}
 
 	async requestResponse(request: VoiceResponseRequest): Promise<void> {
+		this.trace?.write({ source: "provider_adapter", direction: "response_create_requested", reason: request.reason });
 		this.enqueue({ type: "response.create", response: { output_modalities: ["audio"], instructions: request.instructions } });
 	}
 

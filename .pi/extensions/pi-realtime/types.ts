@@ -200,6 +200,9 @@ export type VoiceInstructionReceipt = {
 export type VoiceInstructionRecord = VoiceInstructionInput & { submittedAt: number; delivery: VoiceInstructionReceipt["delivery"] };
 
 export type ProviderDeliveryReceipt = { status: "delivered" | "skipped" | "failed"; message?: string };
+export type RealtimePushMode = "context_only" | "request_spoken_response";
+export type RealtimePushSource = "pi_model_tool" | "automatic_agent_output" | "manual";
+export type RealtimeContextPushInput = { providerSessionId?: ProviderSessionId; text: string; mode: RealtimePushMode; source: RealtimePushSource; summary?: string };
 export type DisconnectReason = "user" | "shutdown" | "reload" | "tree" | "compact" | "error";
 
 export type RealtimeEvent =
