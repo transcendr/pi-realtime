@@ -1,4 +1,4 @@
-import type { ProviderKind, ProviderSessionId, UsageBreakdown, UsageObservation, UsageSource } from "./types";
+import type { ProviderKind, ProviderSessionId, UsageBreakdown, UsageObservation, UsageReset, UsageSource } from "./types";
 
 export type { UsageBreakdown, UsageObservation, UsageSource };
 
@@ -45,8 +45,9 @@ export function costExcludedReason(input: { provider: ProviderKind; model: strin
 	return PRICING_PER_MILLION[input.model] ? undefined : `No local pricing table for model ${input.model}.`;
 }
 
-export function aggregateUsage(observations: readonly UsageObservation[], providerSessionId?: ProviderSessionId): UsageSummary {
-	const rows = providerSessionId ? observations.filter((item) => item.providerSessionId === providerSessionId) : observations;
+export function aggregateUsage(observations: readonly UsageObservation[], providerSessionId?: ProviderSessionId, resets: readonly UsageReset[] = []): UsageSummary {
+	const resetAt = latestResetAt(resets, providerSessionId);
+	const rows = observations.filter((item) => (!providerSessionId || item.providerSessionId === providerSessionId) && item.at > resetAt);
 	const summary: UsageSummary = { providerSessionId, observations: rows.length, responseCount: 0, transcriptionCount: 0, input: emptyUsageBreakdown(), output: emptyUsageBreakdown(), totalTokens: 0, estimatedCostUsd: 0, excludedCostCount: 0 };
 	for (const row of rows) {
 		if (row.source === "response") summary.responseCount += 1;
@@ -59,6 +60,13 @@ export function aggregateUsage(observations: readonly UsageObservation[], provid
 		summary.lastObservedAt = Math.max(summary.lastObservedAt ?? 0, row.at);
 	}
 	return summary;
+}
+
+function latestResetAt(resets: readonly UsageReset[], providerSessionId?: ProviderSessionId): number {
+	return resets.reduce((latest, reset) => {
+		const applies = providerSessionId ? !reset.providerSessionId || reset.providerSessionId === providerSessionId : !reset.providerSessionId;
+		return applies ? Math.max(latest, reset.at) : latest;
+	}, 0);
 }
 
 export function renderUsageSummary(summary: UsageSummary, details = false): string {

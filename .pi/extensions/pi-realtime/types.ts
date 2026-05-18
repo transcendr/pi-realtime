@@ -19,6 +19,7 @@ export type RealtimeConfig = {
 	primaryProviderSessionId: ProviderSessionId | null;
 	defaultProvider: ProviderKind;
 	defaultPersonaId: string;
+	openaiWebRTCEnabled: boolean;
 };
 
 export type VoiceSessionRecord = {
@@ -50,6 +51,11 @@ export type UsageBreakdown = {
 	cachedTextTokens: number;
 	cachedAudioTokens: number;
 	cachedImageTokens: number;
+};
+
+export type UsageReset = {
+	providerSessionId?: ProviderSessionId;
+	at: number;
 };
 
 export type UsageObservation = {
@@ -195,6 +201,7 @@ export type RealtimeEvent =
 	| { version: typeof EVENT_VERSION; kind: "voice_tool_result_sent"; eventId: string; at: number; result: VoiceToolResultRecord }
 	| { version: typeof EVENT_VERSION; kind: "voice_instruction_submitted"; eventId: string; at: number; instruction: VoiceInstructionRecord; receipt: VoiceInstructionReceipt }
 	| { version: typeof EVENT_VERSION; kind: "usage_observed"; eventId: string; at: number; observation: UsageObservation }
+	| { version: typeof EVENT_VERSION; kind: "usage_reset"; eventId: string; at: number; providerSessionId?: ProviderSessionId }
 	| { version: typeof EVENT_VERSION; kind: "citation_deck_observed"; eventId: string; at: number; deck: CitationDeckSummary }
 	| { version: typeof EVENT_VERSION; kind: "config_changed"; eventId: string; at: number; patch: Partial<RealtimeConfig> };
 
@@ -211,5 +218,6 @@ export type RealtimeState = {
 	citationDeck: CitationDeck | null;
 	lastInstruction?: VoiceInstructionRecord;
 	usage: UsageObservation[];
+	usageResets: UsageReset[];
 	history: RealtimeHistorySummary[];
 };

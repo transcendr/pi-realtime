@@ -3,11 +3,13 @@ const logEl = document.getElementById("log");
 const startButton = document.getElementById("start");
 const remoteAudio = document.getElementById("remote");
 const providerSessionId = decodeURIComponent(location.pathname.split("/").pop() || "");
+const outboxPollTracer = createOutboxPollTracer();
 let dc;
 let currentPc;
 let currentStream;
 let lastOutboxId = 0;
 let pollTimer;
+let pollInFlight = false;
 
 startButton.addEventListener("click", () => start().catch((error) => reportError(error)));
 start().catch((error) => reportError(error));
@@ -70,7 +72,7 @@ function logAudioSettings(track) {
 }
 
 function handleRealtimeEvent(event) {
-	trace("openai_inbound", { summary: summarizeRealtimeEvent(event) });
+	traceRealtimeEvent("openai_inbound", event);
 	if (event.type === "response.function_call_arguments.done") return postEvent({ type: "tool_call", providerEventId: event.event_id, call: { voiceToolCallId: event.call_id, providerToolCallId: event.call_id, name: event.name, arguments: parseArgs(event.arguments) } });
 	if (event.type === "conversation.item.input_audio_transcription.completed") {
 		logUsage("input transcription", event.usage);
@@ -90,14 +92,20 @@ function handleRealtimeEvent(event) {
 }
 
 async function pollOutbox() {
-	if (!dc || dc.readyState !== "open") return;
-	const after = lastOutboxId;
-	const result = await json(`/pi-realtime/openai/${encodeURIComponent(providerSessionId)}/outbox?after=${after}`);
-	trace("outbox_poll", { after, returnedIds: (result.events || []).map((item) => item.id) });
-	for (const item of result.events || []) {
-		lastOutboxId = Math.max(lastOutboxId, item.id);
-		trace("openai_outbound_from_outbox", { outboxId: item.id, summary: summarizeRealtimeEvent(item.event) });
-		dc.send(JSON.stringify(item.event));
+	if (!dc || dc.readyState !== "open" || pollInFlight) return;
+	pollInFlight = true;
+	try {
+		const after = lastOutboxId;
+		const result = await json(`/pi-realtime/openai/${encodeURIComponent(providerSessionId)}/outbox?after=${after}`);
+		const returnedIds = (result.events || []).map((item) => item.id);
+		outboxPollTracer.record(after, returnedIds);
+		for (const item of result.events || []) {
+			lastOutboxId = Math.max(lastOutboxId, item.id);
+			traceRealtimeEvent("openai_outbound_from_outbox", item.event, { outboxId: item.id });
+			dc.send(JSON.stringify(item.event));
+		}
+	} finally {
+		pollInFlight = false;
 	}
 }
 
@@ -107,12 +115,12 @@ function sendContext(packet) {
 
 function sendRealtime(event) {
 	if (!dc || dc.readyState !== "open") return;
-	trace("openai_outbound_direct", { summary: summarizeRealtimeEvent(event) });
+	traceRealtimeEvent("openai_outbound_direct", event);
 	dc.send(JSON.stringify(event));
 }
 
-async function postEvent(event) {
-	log(event.type);
+async function postEvent(event, options = {}) {
+	if (options.log !== false) log(event.type);
 	await json(`/pi-realtime/openai/${encodeURIComponent(providerSessionId)}/event`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(event) });
 }
 
@@ -123,7 +131,42 @@ async function json(url, options) {
 }
 
 function trace(label, data = {}) {
-	postEvent({ type: "trace", trace: { label, ...data } }).catch((error) => log(`trace post failed: ${error.message}`));
+	postEvent({ type: "trace", trace: { label, ...data } }, { log: false }).catch((error) => log(`trace post failed: ${error.message}`));
+}
+
+function traceRealtimeEvent(label, event, extra = {}) {
+	trace(label, { ...extra, ...describeRealtimeEvent(event) });
+}
+
+function createOutboxPollTracer() {
+	const emptyPollTraceInterval = 40;
+	let emptyCount = 0;
+	let emptySinceAt;
+	return {
+		record(after, returnedIds) {
+			const now = Date.now();
+			if (returnedIds.length > 0) {
+				trace("outbox_poll", { after, returnedIds, emptyPollsBeforeResult: emptyCount, emptySinceAt });
+				emptyCount = 0;
+				emptySinceAt = undefined;
+				return;
+			}
+			emptySinceAt ??= now;
+			emptyCount += 1;
+			if (emptyCount === 1 || emptyCount % emptyPollTraceInterval === 0) trace("outbox_poll_idle", { after, emptyPolls: emptyCount, emptySinceAt, lastAt: now });
+		},
+	};
+}
+
+function describeRealtimeEvent(event) {
+	const description = { summary: summarizeRealtimeEvent(event) };
+	addTextDetails(description, "content", contentText(event));
+	addTextDetails(description, "transcript", transcriptText(event));
+	addTextDetails(description, "text", outputText(event));
+	addTextDetails(description, "functionArguments", typeof event.arguments === "string" ? event.arguments : undefined);
+	const message = event.error?.message || (typeof event.message === "string" ? event.message : undefined);
+	if (message !== undefined) description.message = message;
+	return description;
 }
 
 function summarizeRealtimeEvent(event) {
@@ -138,6 +181,31 @@ function summarizeRealtimeEvent(event) {
 		role: event.item?.role,
 		contentTypes: Array.isArray(event.item?.content) ? event.item.content.map((part) => part?.type).filter(Boolean) : undefined,
 	};
+}
+
+function addTextDetails(target, prefix, text) {
+	if (text === undefined) return;
+	target[`${prefix}Text`] = text;
+	target[`${prefix}TextLength`] = text.length;
+}
+
+function contentText(event) {
+	const content = Array.isArray(event.item?.content) ? event.item.content : undefined;
+	const parts = content?.flatMap((part) => {
+		const text = typeof part?.text === "string" ? part.text : typeof part?.transcript === "string" ? part.transcript : undefined;
+		return text === undefined ? [] : [text];
+	}) ?? [];
+	return parts.length > 0 ? parts.join("\n\n") : undefined;
+}
+
+function transcriptText(event) {
+	if (event.type === "conversation.item.input_audio_transcription.completed") return event.transcript || "";
+	if (event.type === "response.output_audio_transcript.done") return event.transcript || "";
+	return undefined;
+}
+
+function outputText(event) {
+	return event.type === "response.output_text.done" ? event.text || "" : undefined;
 }
 
 function logUsage(label, usage) {

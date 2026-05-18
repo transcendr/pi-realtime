@@ -1,17 +1,15 @@
-import { appendFileSync } from "node:fs";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { createMacOSFfmpegAudioCapture, type AudioCaptureController } from "./audio";
-import { contextPacketSent, nextProviderSessionId, primaryChanged, providerEventObserved, sessionStarted, sessionStopped, usageObserved, voiceToolCallReceived, voiceToolResultSent } from "./events";
+import { configChanged, contextPacketSent, nextProviderSessionId, primaryChanged, providerEventObserved, sessionStarted, sessionStopped, usageObserved, usageReset, voiceToolCallReceived, voiceToolResultSent } from "./events";
 import { createFfplayAudioPlayback, type AudioPlaybackController } from "./playback";
-import { createDebugTraceRecorder } from "./debug-trace";
+import { createDebugTraceRegistry, describeProviderEvent } from "./debug-trace";
 import { defaultVoiceToolSurface, voiceSystemPrompt } from "./prompt";
 import { createWebRTCHelperServer, openHelperUrl, type WebRTCHelperServer } from "./media/webrtc-helper/server";
 import { buildCitationPacket, buildStatePacket, buildToolSurfacePacket, nextContextRevision } from "./state-packets";
 import type { ControlPlane } from "./control-plane";
 import { createFakeRealtimeProvider, type FakeRealtimeProviderAdapter } from "./providers/fake";
 import { createOpenAIRealtimeProvider, hasOpenAIRealtimeCredentials } from "./providers/openai";
-import { createOpenAIWebRTCBridgeAdapter } from "./providers/openai-webrtc-bridge";
-import { createOpenAIWebRTCClientSecret, hasOpenAIWebRTCCredentials } from "./providers/openai-webrtc";
+import { createOpenAIWebRTCBridgeAdapter, createOpenAIWebRTCClientSecret, hasOpenAIWebRTCCredentials } from "./providers/openai-webrtc-runtime";
 import type { ProviderEventSink, RealtimeProviderAdapter } from "./providers/types";
 import type { CitationDeck, ContextPacket, NormalizedProviderEvent, ProviderKind, ProviderSessionId, RealtimeState, VoiceInstructionInput, VoiceToolCallRecord, VoiceToolName, VoiceToolResultRecord, VoiceToolSurface } from "./types";
 import type { Store } from "./store";
@@ -37,6 +35,9 @@ export type Service = {
 	stopAudioPlayback(providerSessionId?: ProviderSessionId): Promise<void>;
 	audioPlaybackStatus(): string;
 	usageText(providerSessionId?: ProviderSessionId, details?: boolean): string;
+	resetUsage(providerSessionId?: ProviderSessionId): string;
+	setOpenAIWebRTCEnabled(enabled: boolean): string;
+	isOpenAIWebRTCEnabled(): boolean;
 	startWebRTCHelper(providerSessionId: ProviderSessionId, ctx: ExtensionContext): Promise<string>;
 	stopWebRTCHelper(providerSessionId?: ProviderSessionId): Promise<void>;
 	webRTCHelperStatus(): string;
@@ -49,6 +50,7 @@ export type Service = {
 export function createService(store: Store, controlPlane: ControlPlane): Service {
 	return new RealtimeService(store, controlPlane);
 }
+
 class RealtimeService implements Service {
 	private currentCtx: ExtensionContext | undefined;
 	private readonly surface = defaultVoiceToolSurface();
@@ -57,7 +59,7 @@ class RealtimeService implements Service {
 	private readonly audioCaptures = new Map<ProviderSessionId, AudioCaptureController>();
 	private readonly audioPlaybacks = new Map<ProviderSessionId, AudioPlaybackController>();
 	private readonly rawEchoWarnings = new Set<ProviderSessionId>();
-	private readonly debugTracePaths = new Map<ProviderSessionId, string>();
+	private readonly debugTraces = createDebugTraceRegistry();
 	private readonly webrtcHelper: WebRTCHelperServer = createWebRTCHelperServer();
 	private readonly providerSink: ProviderEventSink = { onProviderEvent: (event) => void this.handleProviderEvent(event), onProviderAudio: (chunk) => this.handleProviderAudio(chunk) };
 	constructor(private readonly store: Store, private readonly controlPlane: ControlPlane) {}
@@ -127,13 +129,27 @@ class RealtimeService implements Service {
 
 	usageText(providerSessionId?: ProviderSessionId, details = false): string {
 		const state = this.store.state();
-		const summary = renderUsageSummary(aggregateUsage(state.usage, providerSessionId), details);
+		const summary = renderUsageSummary(aggregateUsage(state.usage, providerSessionId, state.usageResets), details);
 		if (providerSessionId) {
 			const session = state.sessions.get(providerSessionId);
 			return session ? [`session: ${session.providerSessionId} ${session.provider}/${session.model} ${session.status}`, summary].join("\n") : summary;
 		}
 		const sessions = [...state.sessions.values()].map((session) => `- ${session.providerSessionId} ${session.provider}/${session.model} ${session.status}`);
 		return sessions.length > 0 ? [summary, "sessions:", ...sessions].join("\n") : summary;
+	}
+
+	resetUsage(providerSessionId?: ProviderSessionId): string {
+		this.store.append(usageReset(providerSessionId));
+		return providerSessionId ? `Reset realtime usage counters for ${providerSessionId}. Historical usage events were preserved.` : "Reset realtime usage counters. Historical usage events were preserved.";
+	}
+
+	setOpenAIWebRTCEnabled(enabled: boolean): string {
+		this.store.append(configChanged({ openaiWebRTCEnabled: enabled }));
+		return `OpenAI WebRTC auto-launch is ${enabled ? "on" : "off"}.`;
+	}
+
+	isOpenAIWebRTCEnabled(): boolean {
+		return this.store.state().config.openaiWebRTCEnabled;
 	}
 
 	async startWebRTCHelper(providerSessionId: ProviderSessionId, ctx: ExtensionContext): Promise<string> {
@@ -144,8 +160,7 @@ class RealtimeService implements Service {
 		await this.stopAudioPlayback(providerSessionId);
 		await this.adapters.get(providerSessionId)?.disconnect("user");
 		await this.webrtcHelper.start();
-		const trace = createDebugTraceRecorder(providerSessionId);
-		this.debugTracePaths.set(providerSessionId, trace.path);
+		const trace = this.debugTraces.create(providerSessionId);
 		trace.write({ source: "service", direction: "start_webrtc_helper", model: session.model });
 		const adapter = createOpenAIWebRTCBridgeAdapter(providerSessionId, this.webrtcHelper, () => createOpenAIWebRTCClientSecret({ model: session.model, instructions: systemPromptFor(this.surface), toolSurface: this.surface }), trace);
 		this.adapters.set(providerSessionId, adapter);
@@ -173,8 +188,7 @@ class RealtimeService implements Service {
 	}
 
 	debugText(providerSessionId?: ProviderSessionId): string {
-		const entries = providerSessionId ? [...this.debugTracePaths].filter(([id]) => id === providerSessionId) : [...this.debugTracePaths];
-		return entries.length > 0 ? ["realtime debug traces:", ...entries.map(([id, path]) => `- ${id}: ${path}`)].join("\n") : "No realtime debug traces recorded yet.";
+		return this.debugTraces.render(this.store.state(), providerSessionId);
 	}
 
 	rawEchoWarningText(): string {
@@ -263,9 +277,7 @@ class RealtimeService implements Service {
 	}
 
 	private traceProviderEvent(event: NormalizedProviderEvent): void {
-		const path = this.debugTracePaths.get(event.providerSessionId);
-		if (!path) return;
-		appendFileSync(path, `${JSON.stringify({ at: Date.now(), providerSessionId: event.providerSessionId, source: "service", direction: "provider_event", eventType: event.type, providerEventId: event.providerEventId, localSeq: event.localSeq, toolName: event.type === "tool_call" ? event.call.name : undefined })}\n`, "utf8");
+		this.debugTraces.recorderFor(event.providerSessionId)?.write({ source: "service", direction: "provider_event", ...describeProviderEvent(event) });
 	}
 
 	private notifyProviderEvent(event: NormalizedProviderEvent): void {

@@ -14,6 +14,7 @@ export async function handleRealtimeCommand(args: string, ctx: ExtensionCommandC
 	if (cmd === "citations") return citations(ctx, service);
 	if (cmd === "usage") return usage(rest, ctx, service);
 	if (cmd === "debug") return debug(rest, ctx, service);
+	if (cmd === "webrtc") return webrtcPreference(rest, ctx, service);
 	if (cmd === "text") return text(rest, ctx, service);
 	if (cmd === "mic") return mic(rest, ctx, service);
 	if (cmd === "audio") return audio(rest, ctx, service);
@@ -23,7 +24,7 @@ export async function handleRealtimeCommand(args: string, ctx: ExtensionCommandC
 }
 
 export function realtimeCompletions(): string[] {
-	return ["status", "start --provider fake", "start --provider openai", "text", "mic start", "mic stop", "audio start", "audio stop", "openai text", "openai mic start", "openai mic stop", "openai audio start", "openai audio stop", "openai webrtc start", "openai webrtc stop", "openai webrtc status", "usage", "usage --details", "debug", "fake transcript", "fake tool pi_state_snapshot {}", "fake tool pi_send_instruction {\"instruction\":\"...\"}", "stop", "primary", "citations", "help"];
+	return ["status", "start --provider fake", "start --provider openai", "text", "mic start", "mic stop", "audio start", "audio stop", "webrtc on", "webrtc off", "openai", "openai start", "openai stop", "openai text", "openai mic start", "openai mic stop", "openai audio start", "openai audio stop", "openai webrtc start", "openai webrtc stop", "openai webrtc status", "usage", "usage --details", "usage reset", "debug", "fake transcript", "fake tool pi_state_snapshot {}", "fake tool pi_send_instruction {\"instruction\":\"...\"}", "stop", "primary", "citations", "help"];
 }
 
 async function start(tokens: string[], ctx: ExtensionCommandContext, service: Service): Promise<void> {
@@ -63,12 +64,20 @@ function citations(ctx: ExtensionCommandContext, service: Service): void {
 
 function usage(tokens: string[], ctx: ExtensionCommandContext, service: Service): void {
 	const providerSessionId = valueAfter(tokens, "--session") as ProviderSessionId | undefined;
+	if (tokens[0] === "reset") return notify(ctx, service.resetUsage(providerSessionId));
 	notify(ctx, service.usageText(providerSessionId, tokens.includes("--details")));
 }
 
 function debug(tokens: string[], ctx: ExtensionCommandContext, service: Service): void {
 	const providerSessionId = valueAfter(tokens, "--session") as ProviderSessionId | undefined;
 	notify(ctx, service.debugText(providerSessionId));
+}
+
+function webrtcPreference(tokens: string[], ctx: ExtensionCommandContext, service: Service): void {
+	const [mode] = tokens;
+	if (mode === "on") return notify(ctx, service.setOpenAIWebRTCEnabled(true));
+	if (mode === "off") return notify(ctx, service.setOpenAIWebRTCEnabled(false));
+	notify(ctx, "Usage: /realtime webrtc on|off", "warning");
 }
 
 async function text(tokens: string[], ctx: ExtensionCommandContext, service: Service): Promise<void> {
@@ -126,13 +135,36 @@ async function audio(tokens: string[], ctx: ExtensionCommandContext, service: Se
 
 async function openai(tokens: string[], ctx: ExtensionCommandContext, service: Service): Promise<void> {
 	const [subcommand, ...rest] = tokens;
+	if (!subcommand) return latestActiveOpenAISession(service) ? stopOpenAI(ctx, service) : startOpenAI(rest, ctx, service);
+	if (subcommand === "start") return startOpenAI(rest, ctx, service);
+	if (subcommand === "stop") return stopOpenAI(ctx, service);
 	const openaiSession = latestActiveOpenAISession(service);
-	if (!openaiSession) return notify(ctx, "No active OpenAI realtime session. Start one with /realtime start --provider openai.", "warning");
+	if (!openaiSession) return notify(ctx, "No active OpenAI realtime session. Start one with /realtime openai start.", "warning");
 	if (subcommand === "text") return text(["--session", openaiSession.providerSessionId, ...rest], ctx, service);
 	if (subcommand === "mic") return mic([...rest, "--session", openaiSession.providerSessionId], ctx, service);
 	if (subcommand === "audio") return audio([...rest, "--session", openaiSession.providerSessionId], ctx, service);
 	if (subcommand === "webrtc") return webrtc(rest, ctx, service, openaiSession.providerSessionId);
-	return notify(ctx, "Usage: /realtime openai text <message> | openai mic start|stop|status | openai audio start|stop|status | openai webrtc start|stop|status", "warning");
+	return notify(ctx, "Usage: /realtime openai [start|stop] | openai text <message> | openai mic start|stop|status | openai audio start|stop|status | openai webrtc start|stop|status", "warning");
+}
+
+async function startOpenAI(tokens: string[], ctx: ExtensionCommandContext, service: Service): Promise<void> {
+	const model = valueAfter(tokens, "--model") ?? defaultModelFor("openai");
+	const personaId = valueAfter(tokens, "--persona") ?? "default";
+	try {
+		const providerSessionId = await service.startSession({ provider: "openai", model, personaId, primary: !tokens.includes("--secondary") }, ctx);
+		if (!service.isOpenAIWebRTCEnabled()) return notify(ctx, `Started openai realtime session ${providerSessionId} (${model}). WebRTC auto-launch is off.`);
+		const url = await service.startWebRTCHelper(providerSessionId, ctx);
+		notify(ctx, `Started openai realtime session ${providerSessionId} (${model}) and opened WebRTC helper: ${url}`);
+	} catch (error) {
+		notify(ctx, error instanceof Error ? error.message : String(error), "warning");
+	}
+}
+
+async function stopOpenAI(ctx: ExtensionCommandContext, service: Service): Promise<void> {
+	const openaiSession = latestActiveOpenAISession(service);
+	if (!openaiSession) return notify(ctx, "No active OpenAI realtime session is active.", "warning");
+	await service.stopSession(openaiSession.providerSessionId, "user");
+	notify(ctx, `Stopped OpenAI realtime session ${openaiSession.providerSessionId}.`);
 }
 
 async function webrtc(tokens: string[], ctx: ExtensionCommandContext, service: Service, providerSessionId: ProviderSessionId): Promise<void> {
@@ -219,6 +251,8 @@ function helpText(): string {
 		"/realtime text <message> — send text to the primary live provider session",
 		"/realtime mic start|stop|status — stream local microphone to the primary session",
 		"/realtime audio start|stop|status — play provider audio from the primary session",
+		"/realtime webrtc on|off — persistently toggle OpenAI WebRTC auto-launch",
+		"/realtime openai [start|stop] — toggle/start/stop OpenAI; start launches WebRTC when enabled",
 		"/realtime openai text <message> — send text to the active OpenAI session",
 		"/realtime openai mic start|stop|status — stream local microphone to the active OpenAI session",
 		"/realtime openai audio start|stop|status — play OpenAI audio responses",
@@ -229,6 +263,7 @@ function helpText(): string {
 		"/realtime primary <providerSessionId>",
 		"/realtime citations — inspect current Pinotator citation deck",
 		"/realtime usage [--session <id>] [--details] — inspect provider usage telemetry and estimated response cost",
+		"/realtime usage reset [--session <id>] — reset displayed usage counters without deleting historical events",
 		"/realtime debug [--session <id>] — show WebRTC diagnostic trace file paths",
 	].join("\n");
 }
