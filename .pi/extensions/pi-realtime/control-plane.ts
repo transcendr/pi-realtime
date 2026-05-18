@@ -1,7 +1,8 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { citationDeckObserved, voiceInstructionSubmitted } from "./events";
+import { REALTIME_REQUEST_MESSAGE_TYPE, REALTIME_SESSION_MESSAGE_TYPE, renderRealtimeRequestMessage, renderRealtimeSessionMessage } from "./messages";
 import { buildCitationDeckFromBranch } from "./state-packets";
-import type { CitationDeck, PiTargetRef, VoiceInstructionInput, VoiceInstructionReceipt } from "./types";
+import type { CitationDeck, PiTargetRef, VoiceInstructionInput, VoiceInstructionReceipt, VoiceSessionRecord } from "./types";
 import type { Store } from "./store";
 
 export type PiInstructionSink = { sendInstruction(input: VoiceInstructionInput): Promise<VoiceInstructionReceipt> };
@@ -10,6 +11,7 @@ export type ControlPlane = {
 	instructionSink: PiInstructionSink;
 	currentTarget(ctx: ExtensionContext): PiTargetRef;
 	observeCitations(ctx: ExtensionContext): CitationDeck;
+	sendSessionAwareness(session: VoiceSessionRecord, active: boolean): void;
 };
 
 export function createControlPlane(pi: ExtensionAPI, store: Store, getContext: () => ExtensionContext | undefined): ControlPlane {
@@ -21,16 +23,25 @@ export function createControlPlane(pi: ExtensionAPI, store: Store, getContext: (
 			store.append(citationDeckObserved(deck));
 			return deck;
 		},
+		sendSessionAwareness(session, active) {
+			pi.sendMessage({ customType: REALTIME_SESSION_MESSAGE_TYPE, content: renderRealtimeSessionMessage(session, active), display: true, details: { providerSessionId: session.providerSessionId, provider: session.provider, model: session.model, active, at: Date.now() } });
+		},
 	};
+}
+
+function sendRealtimeRequest(pi: ExtensionAPI, input: VoiceInstructionInput, delivery: VoiceInstructionReceipt["delivery"]): void {
+	const message = { customType: REALTIME_REQUEST_MESSAGE_TYPE, content: renderRealtimeRequestMessage(input), display: true, details: { providerSessionId: input.providerSessionId, provider: input.provider, instructionId: input.instructionId, voiceToolCallId: input.voiceToolCallId, urgency: input.urgency, at: Date.now() } };
+	if (delivery === "immediate") pi.sendMessage(message, { triggerTurn: true });
+	else pi.sendMessage(message, { deliverAs: delivery, triggerTurn: true });
 }
 
 function createInstructionSink(pi: ExtensionAPI, store: Store, getContext: () => ExtensionContext | undefined): PiInstructionSink {
 	return {
 		async sendInstruction(input) {
 			const ctx = getContext();
-			const delivery = chooseDelivery(ctx, input.urgency);
+			const delivery = chooseDelivery(ctx, input);
 			try {
-				pi.sendUserMessage(renderInstruction(input), delivery === "immediate" ? undefined : { deliverAs: delivery });
+				sendRealtimeRequest(pi, input, delivery);
 				const receipt: VoiceInstructionReceipt = { status: "submitted", delivery };
 				store.append(voiceInstructionSubmitted(input, receipt));
 				return receipt;
@@ -43,31 +54,10 @@ function createInstructionSink(pi: ExtensionAPI, store: Store, getContext: () =>
 	};
 }
 
-export function renderInstruction(input: VoiceInstructionInput): string {
-	const lines = [
-		`Voice instruction from realtime session ${input.providerSessionId} (${input.provider}):`,
-		"",
-		"<instruction>",
-		input.instructionText.trim(),
-		"</instruction>",
-	];
-	const context = instructionContextLines(input);
-	return context.length > 0 ? [...lines, "", "Context:", ...context].join("\n") : lines.join("\n");
-}
-
-function instructionContextLines(input: VoiceInstructionInput): string[] {
-	const lines: string[] = [];
-	if (input.userUtteranceSummary) lines.push(`- User voice summary: ${input.userUtteranceSummary}`);
-	if (input.citedCitationIds.length > 0) lines.push(`- Cited Pinotator citation ids: ${input.citedCitationIds.join(", ")}`);
-	if (input.citationDeckRevision !== undefined) lines.push(`- Realtime citation deck revision: ${input.citationDeckRevision}`);
-	lines.push(`- Urgency: ${input.urgency}`);
-	if (input.voiceToolCallId) lines.push(`- Voice tool call id: ${input.voiceToolCallId}`);
-	return lines;
-}
-
-function chooseDelivery(ctx: ExtensionContext | undefined, urgency: VoiceInstructionInput["urgency"]): VoiceInstructionReceipt["delivery"] {
+function chooseDelivery(ctx: ExtensionContext | undefined, input: Pick<VoiceInstructionInput, "urgency" | "deliveryHint">): VoiceInstructionReceipt["delivery"] {
 	if (!ctx || ctx.isIdle()) return "immediate";
-	return urgency === "interrupt" ? "steer" : "followUp";
+	if (input.urgency === "interrupt" || input.deliveryHint === "progress") return "steer";
+	return "followUp";
 }
 
 function currentTarget(ctx: ExtensionContext): PiTargetRef {

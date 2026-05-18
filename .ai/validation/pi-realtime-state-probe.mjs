@@ -17,7 +17,8 @@ assert.match(storeSource, /local\.delete\(event\.eventId\)/);
 assert.match(eventsSource, /function replayEvents/);
 assert.match(eventsSource, /pendingToolCalls\.set/);
 assert.match(eventsSource, /pendingToolCalls\.delete/);
-assert.match(controlPlaneSource, /pi\.sendUserMessage/);
+assert.match(controlPlaneSource, /pi\.sendMessage/);
+assert.match(controlPlaneSource, /REALTIME_REQUEST_MESSAGE_TYPE/);
 assert.match(controlPlaneSource, /voiceInstructionSubmitted/);
 
 function replay(events) {
@@ -43,7 +44,7 @@ function replay(events) {
 
 const state = replay([
   { version: 1, kind: "session_started", eventId: "evt-1", at: 1, session: { providerSessionId: "fake_a", provider: "fake", model: "fake-realtime", personaId: "default", status: "active", startedAt: 1 } },
-  { version: 1, kind: "voice_tool_call_received", eventId: "evt-2", at: 2, call: { voiceToolCallId: "call_1", provider: "fake", providerSessionId: "fake_a", name: "pi_send_instruction", arguments: {}, status: "pending", createdAt: 2 } },
+  { version: 1, kind: "voice_tool_call_received", eventId: "evt-2", at: 2, call: { voiceToolCallId: "call_1", provider: "fake", providerSessionId: "fake_a", name: "request", arguments: {}, status: "pending", createdAt: 2 } },
   { version: 1, kind: "context_packet_sent", eventId: "evt-3", at: 3, providerSessionId: "fake_a", packet: { packetId: "pkt_1", revision: 4, channel: "pi_state", priority: "normal", summary: "ok", createdAt: 3 }, receipt: { status: "delivered" } },
   { version: 1, kind: "voice_tool_result_sent", eventId: "evt-4", at: 4, result: { voiceToolCallId: "call_1", providerSessionId: "fake_a", status: "sent", resultText: "ok", at: 4 } },
   { version: 1, kind: "usage_observed", eventId: "evt-5", at: 5, observation: { providerSessionId: "fake_a", provider: "openai", model: "gpt-realtime-2", source: "response", at: 5, input: { textTokens: 1, audioTokens: 2, imageTokens: 0, cachedTextTokens: 0, cachedAudioTokens: 0, cachedImageTokens: 0 }, output: { textTokens: 3, audioTokens: 4, imageTokens: 0, cachedTextTokens: 0, cachedAudioTokens: 0, cachedImageTokens: 0 }, totalTokens: 10, estimatedCostUsd: 0.1 } },

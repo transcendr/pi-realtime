@@ -21,7 +21,7 @@ assert.doesNotMatch(serviceSource, /from "\.\/providers\/openai"|from "@google\/
 assert.doesNotMatch(serviceSource, /createMacOSFfmpegAudioCapture|AudioCaptureController|createFfplayAudioPlayback|AudioPlaybackController/);
 assert.doesNotMatch(runtimeSource, /\.\/openai\/webrtc|createOpenAIWebRTCBridgeAdapter|createOpenAIWebRTCClientSecret|hasOpenAIWebRTCCredentials/);
 assert.doesNotMatch(serviceSource, /setOpenAIWebRTCEnabled|isOpenAIWebRTCEnabled|startWebRTCHelper|stopWebRTCHelper|webRTCHelperStatus|sendInstructionFromTool|resolveCitation/);
-assert.match(toolsSource, /missing required non-empty instruction text/);
+assert.match(toolsSource, /missing required non-empty request text/);
 assert.doesNotMatch(commandsSource, /function startOpenAI|function stopOpenAI|isOpenAIWebRTCEnabled/);
 assert.deepEqual(readdirSync(".pi/extensions/pi-realtime/providers").filter((name) => /^openai[-.]/.test(name)), []);
 

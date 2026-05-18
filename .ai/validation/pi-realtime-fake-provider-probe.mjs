@@ -20,14 +20,16 @@ assert.match(fakeRuntimeSource, /createFakeRealtimeProvider/);
 assert.match(fakeRuntimeSource, /createFakeProviderRuntime/);
 assert.doesNotMatch(serviceSource, /createFakeRealtimeProvider/);
 assert.match(serviceSource, /executeDirectTool/);
+assert.match(toolsSource, /call\.name === "request"/);
 assert.match(toolsSource, /pi_send_instruction/);
 assert.match(toolsSource, /pinotator_citation_resolve/);
-assert.match(toolsSource, /missing required non-empty instruction text/);
+assert.match(toolsSource, /missing required non-empty request text/);
 assert.doesNotMatch(serviceSource, /Voice provider requested Pi action without instruction text/);
 assert.match(serviceSource, /\.disconnect\(/);
 assert.match(commandsSource, /fake transcript/);
 assert.match(commandsSource, /fake tool/);
-assert.match(controlPlaneSource, /pi\.sendUserMessage/);
+assert.match(controlPlaneSource, /pi\.sendMessage/);
+assert.match(controlPlaneSource, /REALTIME_REQUEST_MESSAGE_TYPE/);
 
 class FakeHarness {
   constructor(id) { this.id = id; this.events = []; this.results = []; this.seq = 0; }
@@ -42,8 +44,8 @@ class FakeHarness {
 const fake = new FakeHarness("fake_1");
 fake.connect();
 fake.updateContext({ packetId: "pkt_1", revision: 1 });
-const callId = fake.simulateToolCall("pi_send_instruction", { instruction: "Run tests", citedCitationIds: ["cit_1"] });
-fake.sendToolResult({ voiceToolCallId: callId, providerSessionId: "fake_1", status: "sent", resultText: "Submitted instruction to Pi." });
+const callId = fake.simulateToolCall("request", { request: "Run tests", citedCitationIds: ["cit_1"] });
+fake.sendToolResult({ voiceToolCallId: callId, providerSessionId: "fake_1", status: "sent", resultText: "Request submitted." });
 fake.disconnect();
 
 assert.deepEqual(fake.events.map((event) => event.type), ["connected", "context_delivery", "tool_call", "disconnected"]);

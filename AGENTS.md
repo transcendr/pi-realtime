@@ -14,6 +14,24 @@
 
 This repository is a Pi extension project. Use the `pi-extension-dev` skill for setup, implementation, validation, and review work.
 
+## Realtime interaction / communication model
+
+- Treat realtime voice as the frontend/interface and Pi as the backend worker/main agent. This is an internal architecture model, not language to expose to the user.
+- The realtime model should do only shallow interaction work: listen, clarify, and communicate user intent. It should not perform backend task reasoning, inspect Pi state to answer work questions, chain tools, or infer completion from residual context.
+- To the user, realtime should present as one coherent assistant and should not reveal/narrate an internal handoff to another processor, backend agent, or worker.
+- Realtime currently exposes a single normal tool, `request`, for backend work/status/questions. Existing legacy realtime tools may remain in code for compatibility/tests, but they should not be exposed in the normal realtime tool surface unless explicitly reintroduced with evidence.
+- Pi receives realtime-originated work as custom `pi-realtime.request` messages that trigger a Pi turn and render visibly in the TUI. Do not revert these to ordinary `sendUserMessage` wrappers without an explicit design decision.
+- When handling a `pi-realtime.request`, Pi is responsible for doing the backend work and for proactively communicating useful acknowledgements, progress, and final answers back to the active realtime session.
+- Pi can inspect realtime availability directly with `realtime_status`, especially before realtime sends when active/live status is uncertain.
+- Pi communicates back to realtime through explicit tools. Phrase tool text as first-person, user-facing assistant speech/status, not as relay mechanics such as “request received,” “sent to backend,” or “queued.”
+  - `realtime_send_ack`: short contextual acknowledgement before work is done.
+  - `realtime_send_status`: progress/checkpoint/milestone/failure/success/approach-change updates during work.
+  - `realtime_send_text`: summaries, reports, final answers, or other text that is not an ack/status.
+- If no realtime session is active/live, `realtime_status` and `realtime_send_*` should report that clearly and Pi should continue normally without retry loops.
+- Starting/stopping a realtime session should inject non-turn-triggering Pi context so Pi knows whether realtime is active and whether to use realtime tools for realtime-originated communication.
+- Pi should notice repeated realtime requests that look like feedback loops, stop reprocessing the same work, inspect traces/state, and report the loop rather than blindly executing duplicate backend work.
+- The realtime model’s own behavior contract lives in `.pi/extensions/pi-realtime/prompt.ts` and `.pi/extensions/pi-realtime/realtime-updates.ts`; update those files when changing how realtime distinguishes user audio from structured system updates.
+
 ## Required protocol
 
 - Follow `~/.codex/skills/pi-extension-dev/references/standard-repo-protocol.md`.

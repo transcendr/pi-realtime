@@ -18,6 +18,7 @@ export type Service = {
 	state(): RealtimeState;
 	toolSurface(): VoiceToolSurface;
 	statusText(): string;
+	realtimeStatusText(providerSessionId?: ProviderSessionId): string;
 	defaultModelFor(provider: ProviderKind): string;
 	startSession(input: { provider: ProviderKind; model: string; personaId?: string; primary?: boolean }, ctx: ExtensionContext): Promise<ProviderSessionId>;
 	stopSession(providerSessionId: ProviderSessionId, reason?: string): Promise<void>;
@@ -67,6 +68,16 @@ class RealtimeService implements Service {
 	state(): RealtimeState { return this.store.state(); }
 	toolSurface(): VoiceToolSurface { return this.surface; }
 	statusText(): string { return renderStatusText(this.store.state()); }
+	realtimeStatusText(providerSessionId?: ProviderSessionId): string {
+		const target = providerSessionId ?? this.defaultRealtimePushTarget();
+		const live = target ? this.adapters.has(target) : false;
+		return [
+			renderStatusText(this.store.state()),
+			`realtime_send target: ${target ?? "none"}`,
+			`target live: ${live ? "yes" : "no"}`,
+			live ? "Pi can use realtime_send_ack, realtime_send_status, or realtime_send_text for this target." : "No live realtime send target is available; continue normally in Pi and do not retry realtime_send_* tools.",
+		].join("\n");
+	}
 	defaultModelFor(provider: ProviderKind): string { return this.requireProviderRuntime(provider).defaultModel(); }
 	setPrimary(providerSessionId: ProviderSessionId | null): void { this.store.append(primaryChanged(providerSessionId)); }
 	observeCitationDeck(ctx: ExtensionContext): CitationDeck { return this.controlPlane.observeCitations(ctx); }
@@ -80,13 +91,13 @@ class RealtimeService implements Service {
 
 	async pushRealtimeContext(input: RealtimeContextPushInput): Promise<string> {
 		const text = input.text.trim();
-		if (!text) throw new Error("pi_realtime_send_text requires non-empty text.");
-		const providerSessionId = input.providerSessionId ?? this.store.state().primaryProviderSessionId;
-		if (!providerSessionId) throw new Error("No active realtime session is available for pi_realtime_send_text.");
+		if (!text) throw new Error("realtime_send_* requires non-empty text.");
+		const providerSessionId = input.providerSessionId ?? this.defaultRealtimePushTarget();
+		if (!providerSessionId) return "No active realtime session is available; the realtime update was not sent.";
 		const adapter = this.adapters.get(providerSessionId);
-		if (!adapter) throw new Error(`No live provider adapter for ${providerSessionId}`);
-		const receipt = await adapter.pushContext({ text, mode: input.mode, source: input.source, summary: input.summary });
-		this.debugTraces.recorderFor(providerSessionId)?.write({ source: "service", direction: "pi_realtime_context_push", providerSessionId, mode: input.mode, pushSource: input.source, summary: input.summary, textLength: text.length, responseRequested: input.mode === "request_spoken_response", receiptStatus: receipt.status });
+		if (!adapter) return `Realtime session ${providerSessionId} is not currently live; the realtime update was not sent.`;
+		const receipt = await adapter.pushContext({ text, mode: input.mode, source: input.source, kind: input.kind, summary: input.summary });
+		this.debugTraces.recorderFor(providerSessionId)?.write({ source: "service", direction: "pi_realtime_context_push", providerSessionId, mode: input.mode, updateKind: input.kind, pushSource: input.source, summary: input.summary, textLength: text.length, responseRequested: input.mode === "request_spoken_response", receiptStatus: receipt.status });
 		return `${receipt.message ?? "Realtime context push accepted"} (${providerSessionId}).`;
 	}
 	async startMicrophone(providerSessionId: ProviderSessionId): Promise<void> {
@@ -188,6 +199,8 @@ class RealtimeService implements Service {
 		this.setAdapter(providerSessionId, adapter);
 		await adapter.connect({ providerSessionId, provider: input.provider, model: input.model, personaId: input.personaId ?? "default", systemPrompt: systemPromptFor(this.surface), toolSurface: this.surface, initialContext: packets[0], capabilities: { preferPassiveContext: input.provider === "fake", preferSemanticVad: input.provider !== "fake" } }, this.providerSink);
 		for (const packet of input.provider === "fake" ? packets : packets.slice(1)) await this.recordContextPacket(providerSessionId, packet, adapter);
+		const session = this.store.state().sessions.get(providerSessionId);
+		if (session) this.controlPlane.sendSessionAwareness(session, true);
 		return providerSessionId;
 	}
 
@@ -199,6 +212,8 @@ class RealtimeService implements Service {
 		this.adapters.delete(providerSessionId);
 		this.fakeAdapters.delete(providerSessionId);
 		this.store.append(sessionStopped(providerSessionId, reason));
+		const session = this.store.state().sessions.get(providerSessionId);
+		if (session) this.controlPlane.sendSessionAwareness(session, false);
 	}
 
 	buildPackets(ctx: ExtensionContext, providerSessionId: ProviderSessionId): ContextPacket[] {
@@ -244,6 +259,20 @@ class RealtimeService implements Service {
 	private setAdapter(providerSessionId: ProviderSessionId, adapter: RealtimeProviderAdapter): void {
 		this.adapters.set(providerSessionId, adapter);
 		if (adapter.provider === "fake") this.fakeAdapters.set(providerSessionId, adapter as FakeRealtimeProviderAdapter);
+	}
+
+	private defaultRealtimePushTarget(): ProviderSessionId | null {
+		const state = this.store.state();
+		const lastInstructionTarget = state.lastInstruction?.providerSessionId;
+		if (lastInstructionTarget && this.adapters.has(lastInstructionTarget)) return lastInstructionTarget;
+		if (state.primaryProviderSessionId && this.adapters.has(state.primaryProviderSessionId)) return state.primaryProviderSessionId;
+		const ids = [...this.adapters.keys()];
+		for (let index = ids.length - 1; index >= 0; index -= 1) {
+			const id = ids[index] as ProviderSessionId;
+			const session = state.sessions.get(id);
+			if (session?.status === "active" || session?.status === "starting") return id;
+		}
+		return null;
 	}
 
 	private async stopLocalMedia(providerSessionId: ProviderSessionId): Promise<void> {
@@ -306,9 +335,7 @@ class RealtimeService implements Service {
 	}
 }
 
-function responsePolicyForTool(call: VoiceToolCallRecord): ToolResultResponsePolicy {
-	if (call.name === "pi_send_instruction" || call.name === "pi_wait_for_update") return "none";
-	if (call.name === "pi_state_snapshot" || call.name === "pinotator_citations_list" || call.name === "pinotator_citation_resolve" || call.name === "pi_realtime_status") return "none";
+function responsePolicyForTool(_call: VoiceToolCallRecord): ToolResultResponsePolicy {
 	return "none";
 }
 

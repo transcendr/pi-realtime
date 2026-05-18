@@ -24,7 +24,7 @@ export async function handleRealtimeCommand(args: string, ctx: ExtensionCommandC
 }
 
 export function realtimeCompletions(): string[] {
-	return ["status", "start --provider fake", "start --provider openai", "text", "mic start", "mic stop", "audio start", "audio stop", "webrtc on", "webrtc off", "openai", "openai start", "openai stop", "openai text", "openai mic start", "openai mic stop", "openai audio start", "openai audio stop", "openai webrtc start", "openai webrtc stop", "openai webrtc status", "usage", "usage --details", "usage reset", "debug", "fake transcript", "fake tool pi_state_snapshot {}", "fake tool pi_send_instruction {\"instruction\":\"...\"}", "stop", "primary", "citations", "help"];
+	return ["status", "start --provider fake", "start --provider openai", "text", "mic start", "mic stop", "audio start", "audio stop", "webrtc on", "webrtc off", "openai", "openai start", "openai stop", "openai text", "openai mic start", "openai mic stop", "openai audio start", "openai audio stop", "openai webrtc start", "openai webrtc stop", "openai webrtc status", "usage", "usage --details", "usage reset", "debug", "fake transcript", "fake tool request {\"request\":\"...\"}", "stop", "primary", "citations", "help"];
 }
 
 async function start(tokens: string[], ctx: ExtensionCommandContext, service: Service): Promise<void> {
