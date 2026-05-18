@@ -15,11 +15,22 @@ export type PiTargetRef = {
 	sessionId?: string;
 };
 
+export type ProviderMediaMode = "raw" | "webrtc" | "none";
+
+export type ProviderPreferences = {
+	autoMediaMode?: ProviderMediaMode;
+};
+
 export type RealtimeConfig = {
 	primaryProviderSessionId: ProviderSessionId | null;
 	defaultProvider: ProviderKind;
 	defaultPersonaId: string;
-	openaiWebRTCEnabled: boolean;
+	providerPreferences: Partial<Record<ProviderKind, ProviderPreferences>>;
+};
+
+export type RealtimeConfigPatch = Partial<RealtimeConfig> & {
+	/** Replay compatibility for pre-provider-preferences events. */
+	openaiWebRTCEnabled?: boolean;
 };
 
 export type VoiceSessionRecord = {
@@ -203,7 +214,7 @@ export type RealtimeEvent =
 	| { version: typeof EVENT_VERSION; kind: "usage_observed"; eventId: string; at: number; observation: UsageObservation }
 	| { version: typeof EVENT_VERSION; kind: "usage_reset"; eventId: string; at: number; providerSessionId?: ProviderSessionId }
 	| { version: typeof EVENT_VERSION; kind: "citation_deck_observed"; eventId: string; at: number; deck: CitationDeckSummary }
-	| { version: typeof EVENT_VERSION; kind: "config_changed"; eventId: string; at: number; patch: Partial<RealtimeConfig> };
+	| { version: typeof EVENT_VERSION; kind: "config_changed"; eventId: string; at: number; patch: RealtimeConfigPatch };
 
 export type ProviderContextRevisionState = Partial<Record<ContextPacketChannel, number>>;
 

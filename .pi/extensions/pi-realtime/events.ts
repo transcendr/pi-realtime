@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { EVENT_VERSION, type CitationDeck, type CitationDeckSummary, type ContextPacket, type ContextPacketSummary, type NormalizedProviderEvent, type ProviderDeliveryReceipt, type ProviderKind, type ProviderSessionId, type RealtimeConfig, type RealtimeEvent, type RealtimeHistorySummary, type RealtimeState, type UsageObservation, type VoiceInstructionInput, type VoiceInstructionReceipt, type VoiceSessionRecord, type VoiceToolCallRecord, type VoiceToolResultRecord } from "./types";
+import { EVENT_VERSION, type CitationDeck, type CitationDeckSummary, type ContextPacket, type ContextPacketSummary, type NormalizedProviderEvent, type ProviderDeliveryReceipt, type ProviderKind, type ProviderSessionId, type RealtimeConfig, type RealtimeConfigPatch, type RealtimeEvent, type RealtimeHistorySummary, type RealtimeState, type UsageObservation, type VoiceInstructionInput, type VoiceInstructionReceipt, type VoiceSessionRecord, type VoiceToolCallRecord, type VoiceToolResultRecord } from "./types";
 
-export const defaultConfig: RealtimeConfig = { primaryProviderSessionId: null, defaultProvider: "fake", defaultPersonaId: "default", openaiWebRTCEnabled: false };
+export const defaultConfig: RealtimeConfig = { primaryProviderSessionId: null, defaultProvider: "fake", defaultPersonaId: "default", providerPreferences: {} };
 
 export function createInitialState(config: RealtimeConfig = defaultConfig): RealtimeState {
 	return { config: { ...config }, sessions: new Map(), primaryProviderSessionId: config.primaryProviderSessionId, pendingToolCalls: new Map(), contextRevisions: new Map(), citationDeck: null, usage: [], usageResets: [], history: [] };
@@ -68,8 +68,10 @@ function applyCitationDeck(state: RealtimeState, deck: CitationDeckSummary): voi
 	state.citationDeck = { revision: deck.revision, source: "pinotator", observedAt: deck.observedAt, active };
 }
 
-function applyConfigPatch(state: RealtimeState, patch: Partial<RealtimeConfig>): void {
-	state.config = { ...state.config, ...patch };
+function applyConfigPatch(state: RealtimeState, patch: RealtimeConfigPatch): void {
+	const { openaiWebRTCEnabled, providerPreferences, ...rest } = patch;
+	const migratedOpenAI = typeof openaiWebRTCEnabled === "boolean" ? { openai: { ...state.config.providerPreferences.openai, autoMediaMode: openaiWebRTCEnabled ? "webrtc" as const : "none" as const } } : {};
+	state.config = { ...state.config, ...rest, providerPreferences: { ...state.config.providerPreferences, ...providerPreferences, ...migratedOpenAI } };
 	state.primaryProviderSessionId = state.config.primaryProviderSessionId;
 }
 
@@ -117,7 +119,7 @@ export function citationDeckObserved(deck: CitationDeck, at = Date.now()): Realt
 	return { version: EVENT_VERSION, kind: "citation_deck_observed", eventId: id("evt"), at, deck: summarizeDeck(deck) };
 }
 
-export function configChanged(patch: Partial<RealtimeConfig>, at = Date.now()): RealtimeEvent {
+export function configChanged(patch: RealtimeConfigPatch, at = Date.now()): RealtimeEvent {
 	return { version: EVENT_VERSION, kind: "config_changed", eventId: id("evt"), at, patch };
 }
 

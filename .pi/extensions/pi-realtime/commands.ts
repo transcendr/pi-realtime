@@ -1,5 +1,5 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { defaultModelFor, type Service } from "./service";
+import type { Service } from "./service";
 import type { ProviderKind, ProviderSessionId, VoiceToolName } from "./types";
 
 export async function handleRealtimeCommand(args: string, ctx: ExtensionCommandContext, service: Service): Promise<void> {
@@ -29,13 +29,14 @@ export function realtimeCompletions(): string[] {
 
 async function start(tokens: string[], ctx: ExtensionCommandContext, service: Service): Promise<void> {
 	const provider = providerArg(tokens) ?? "fake";
-	const model = valueAfter(tokens, "--model") ?? defaultModelFor(provider);
+	const model = valueAfter(tokens, "--model") ?? service.defaultModelFor(provider);
 	const personaId = valueAfter(tokens, "--persona") ?? "default";
 	const primary = !tokens.includes("--secondary");
 	try {
 		const providerSessionId = await service.startSession({ provider, model, personaId, primary }, ctx);
 		notify(ctx, `Started ${provider} realtime session ${providerSessionId} (${model}).${primary ? "" : " Not primary."}`);
-		if (provider === "openai") notify(ctx, service.rawEchoWarningText(), "warning");
+		const warning = service.providerWarning(provider);
+		if (warning) notify(ctx, warning, "warning");
 	} catch (error) {
 		notify(ctx, error instanceof Error ? error.message : String(error), "warning");
 	}
@@ -75,8 +76,8 @@ function debug(tokens: string[], ctx: ExtensionCommandContext, service: Service)
 
 function webrtcPreference(tokens: string[], ctx: ExtensionCommandContext, service: Service): void {
 	const [mode] = tokens;
-	if (mode === "on") return notify(ctx, service.setOpenAIWebRTCEnabled(true));
-	if (mode === "off") return notify(ctx, service.setOpenAIWebRTCEnabled(false));
+	if (mode === "on") return notify(ctx, service.updateProviderPreference("openai", { autoMediaMode: "webrtc" }));
+	if (mode === "off") return notify(ctx, service.updateProviderPreference("openai", { autoMediaMode: "none" }));
 	notify(ctx, "Usage: /realtime webrtc on|off", "warning");
 }
 
@@ -135,9 +136,9 @@ async function audio(tokens: string[], ctx: ExtensionCommandContext, service: Se
 
 async function openai(tokens: string[], ctx: ExtensionCommandContext, service: Service): Promise<void> {
 	const [subcommand, ...rest] = tokens;
-	if (!subcommand) return latestActiveOpenAISession(service) ? stopOpenAI(ctx, service) : startOpenAI(rest, ctx, service);
-	if (subcommand === "start") return startOpenAI(rest, ctx, service);
-	if (subcommand === "stop") return stopOpenAI(ctx, service);
+	if (!subcommand) return latestActiveOpenAISession(service) ? stopProvider("openai", ctx, service) : startProvider("openai", rest, ctx, service);
+	if (subcommand === "start") return startProvider("openai", rest, ctx, service);
+	if (subcommand === "stop") return stopProvider("openai", ctx, service);
 	const openaiSession = latestActiveOpenAISession(service);
 	if (!openaiSession) return notify(ctx, "No active OpenAI realtime session. Start one with /realtime openai start.", "warning");
 	if (subcommand === "text") return text(["--session", openaiSession.providerSessionId, ...rest], ctx, service);
@@ -147,36 +148,39 @@ async function openai(tokens: string[], ctx: ExtensionCommandContext, service: S
 	return notify(ctx, "Usage: /realtime openai [start|stop] | openai text <message> | openai mic start|stop|status | openai audio start|stop|status | openai webrtc start|stop|status", "warning");
 }
 
-async function startOpenAI(tokens: string[], ctx: ExtensionCommandContext, service: Service): Promise<void> {
-	const model = valueAfter(tokens, "--model") ?? defaultModelFor("openai");
+async function startProvider(provider: ProviderKind, tokens: string[], ctx: ExtensionCommandContext, service: Service): Promise<void> {
+	const model = valueAfter(tokens, "--model") ?? service.defaultModelFor(provider);
 	const personaId = valueAfter(tokens, "--persona") ?? "default";
 	try {
-		const providerSessionId = await service.startSession({ provider: "openai", model, personaId, primary: !tokens.includes("--secondary") }, ctx);
-		if (!service.isOpenAIWebRTCEnabled()) return notify(ctx, `Started openai realtime session ${providerSessionId} (${model}). WebRTC auto-launch is off.`);
-		const url = await service.startWebRTCHelper(providerSessionId, ctx);
-		notify(ctx, `Started openai realtime session ${providerSessionId} (${model}) and opened WebRTC helper: ${url}`);
+		const providerSessionId = await service.startSession({ provider, model, personaId, primary: !tokens.includes("--secondary") }, ctx);
+		const mediaMode = service.providerPreference(provider).autoMediaMode;
+		if (mediaMode && mediaMode !== "none" && mediaMode !== "raw") {
+			const url = await service.startSessionMedia(providerSessionId, mediaMode, ctx);
+			return notify(ctx, `Started ${provider} realtime session ${providerSessionId} (${model}) and opened ${mediaMode} media: ${url}`);
+		}
+		notify(ctx, `Started ${provider} realtime session ${providerSessionId} (${model}).`);
 	} catch (error) {
 		notify(ctx, error instanceof Error ? error.message : String(error), "warning");
 	}
 }
 
-async function stopOpenAI(ctx: ExtensionCommandContext, service: Service): Promise<void> {
-	const openaiSession = latestActiveOpenAISession(service);
-	if (!openaiSession) return notify(ctx, "No active OpenAI realtime session is active.", "warning");
-	await service.stopSession(openaiSession.providerSessionId, "user");
-	notify(ctx, `Stopped OpenAI realtime session ${openaiSession.providerSessionId}.`);
+async function stopProvider(provider: ProviderKind, ctx: ExtensionCommandContext, service: Service): Promise<void> {
+	const session = latestActiveProviderSession(service, provider);
+	if (!session) return notify(ctx, `No active ${provider} realtime session is active.`, "warning");
+	await service.stopSession(session.providerSessionId, "user");
+	notify(ctx, `Stopped ${provider} realtime session ${session.providerSessionId}.`);
 }
 
 async function webrtc(tokens: string[], ctx: ExtensionCommandContext, service: Service, providerSessionId: ProviderSessionId): Promise<void> {
 	const [subcommand = "status"] = tokens;
 	try {
-		if (subcommand === "status") return notify(ctx, service.webRTCHelperStatus());
+		if (subcommand === "status") return notify(ctx, service.mediaStatus(providerSessionId));
 		if (subcommand === "start") {
-			const url = await service.startWebRTCHelper(providerSessionId, ctx);
+			const url = await service.startSessionMedia(providerSessionId, "webrtc", ctx);
 			return notify(ctx, `Started OpenAI WebRTC helper for ${providerSessionId}. Opened ${url}`);
 		}
 		if (subcommand === "stop") {
-			await service.stopWebRTCHelper(providerSessionId);
+			await service.stopSessionMedia(providerSessionId);
 			return notify(ctx, `Stopped OpenAI WebRTC helper for ${providerSessionId}.`);
 		}
 	} catch (error) {
@@ -186,7 +190,11 @@ async function webrtc(tokens: string[], ctx: ExtensionCommandContext, service: S
 }
 
 function latestActiveOpenAISession(service: Service) {
-	return [...service.state().sessions.values()].reverse().find((session) => session.provider === "openai" && (session.status === "active" || session.status === "starting"));
+	return latestActiveProviderSession(service, "openai");
+}
+
+function latestActiveProviderSession(service: Service, provider: ProviderKind) {
+	return [...service.state().sessions.values()].reverse().find((session) => session.provider === provider && (session.status === "active" || session.status === "starting"));
 }
 
 async function fake(tokens: string[], ctx: ExtensionCommandContext, service: Service): Promise<void> {

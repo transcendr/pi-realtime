@@ -5,13 +5,20 @@ import { readFileSync } from "node:fs";
 const typesSource = readFileSync(".pi/extensions/pi-realtime/types.ts", "utf8");
 const providerTypesSource = readFileSync(".pi/extensions/pi-realtime/providers/types.ts", "utf8");
 const serviceSource = readFileSync(".pi/extensions/pi-realtime/service.ts", "utf8");
+const runtimeSource = readFileSync(".pi/extensions/pi-realtime/providers/runtime.ts", "utf8");
+const commandsSource = readFileSync(".pi/extensions/pi-realtime/commands.ts", "utf8");
 
 assert.match(typesSource, /ProviderSessionId = string/);
 assert.match(typesSource, /providerSessionId: ProviderSessionId/);
 assert.match(typesSource, /VoiceToolCallId = string/);
 assert.match(providerTypesSource, /providerSessionId: ProviderSessionId/);
 assert.match(providerTypesSource, /sendToolResult\(result: VoiceToolResultRecord\)/);
-assert.doesNotMatch(serviceSource, /from "openai"|from "@google\/genai"|openai\/realtime/);
+assert.match(runtimeSource, /ProviderRuntimeRegistry/);
+assert.match(runtimeSource, /createDefaultProviderRuntimeRegistry/);
+assert.match(serviceSource, /createDefaultProviderRuntimeRegistry/);
+assert.doesNotMatch(serviceSource, /from "\.\/providers\/openai"|from "@google\/genai"|openai\/realtime|createOpenAIRealtimeProvider|hasOpenAIRealtimeCredentials|createOpenAIWebRTCBridgeAdapter|createOpenAIWebRTCClientSecret/);
+assert.doesNotMatch(serviceSource, /setOpenAIWebRTCEnabled|isOpenAIWebRTCEnabled|startWebRTCHelper|stopWebRTCHelper|webRTCHelperStatus/);
+assert.doesNotMatch(commandsSource, /function startOpenAI|function stopOpenAI|isOpenAIWebRTCEnabled/);
 
 function routeToolResult(pending, result) {
   const call = pending.get(result.voiceToolCallId);

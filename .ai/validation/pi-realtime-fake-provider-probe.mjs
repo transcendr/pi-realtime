@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 const fakeSource = readFileSync(".pi/extensions/pi-realtime/providers/fake.ts", "utf8");
 const serviceSource = readFileSync(".pi/extensions/pi-realtime/service.ts", "utf8");
+const runtimeSource = readFileSync(".pi/extensions/pi-realtime/providers/runtime.ts", "utf8");
 const commandsSource = readFileSync(".pi/extensions/pi-realtime/commands.ts", "utf8");
 const controlPlaneSource = readFileSync(".pi/extensions/pi-realtime/control-plane.ts", "utf8");
 
@@ -13,7 +14,9 @@ assert.match(fakeSource, /simulateToolCall/);
 assert.match(fakeSource, /updateContext/);
 assert.match(fakeSource, /sendToolResult/);
 assert.doesNotMatch(fakeSource, /from "openai"|from "@google\/genai"|WebSocket/);
-assert.match(serviceSource, /createFakeRealtimeProvider/);
+assert.match(runtimeSource, /createFakeRealtimeProvider/);
+assert.match(runtimeSource, /createFakeProviderRuntime/);
+assert.doesNotMatch(serviceSource, /createFakeRealtimeProvider/);
 assert.match(serviceSource, /executeDirectTool/);
 assert.match(serviceSource, /pi_send_instruction/);
 assert.match(serviceSource, /pinotator_citation_resolve/);
