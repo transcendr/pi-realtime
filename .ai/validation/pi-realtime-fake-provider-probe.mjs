@@ -6,7 +6,6 @@ const fakeSource = readFileSync(".pi/extensions/pi-realtime/providers/fake.ts", 
 const serviceSource = readFileSync(".pi/extensions/pi-realtime/service.ts", "utf8");
 const commandsSource = readFileSync(".pi/extensions/pi-realtime/commands.ts", "utf8");
 const controlPlaneSource = readFileSync(".pi/extensions/pi-realtime/control-plane.ts", "utf8");
-const safetySource = readFileSync(".pi/extensions/pi-realtime/safety.ts", "utf8");
 
 assert.match(fakeSource, /class FakeRealtimeProviderAdapter/);
 assert.match(fakeSource, /simulateTranscript/);
@@ -19,11 +18,6 @@ assert.match(serviceSource, /executeDirectTool/);
 assert.match(serviceSource, /pi_send_instruction/);
 assert.match(serviceSource, /pinotator_citation_resolve/);
 assert.match(serviceSource, /missing required non-empty instruction text/);
-assert.match(serviceSource, /validateVoiceInstruction/);
-assert.match(serviceSource, /recentUserTranscripts/);
-assert.match(serviceSource, /no recent final user transcript/);
-assert.match(safetySource, /hasGroundingOverlap/);
-assert.match(safetySource, /VOICE_INSTRUCTION_TRANSCRIPT_WINDOW_MS/);
 assert.doesNotMatch(serviceSource, /Voice provider requested Pi action without instruction text/);
 assert.match(serviceSource, /\.disconnect\(/);
 assert.match(commandsSource, /fake transcript/);

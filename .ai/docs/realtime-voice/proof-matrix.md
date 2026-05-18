@@ -20,7 +20,6 @@ This matrix covers the provider-neutral realtime voice system, fake/no-network p
 | Commands | `.pi/extensions/pi-realtime/commands.ts` |
 | OpenAI raw adapter | `.pi/extensions/pi-realtime/providers/openai.ts`, `.pi/extensions/pi-realtime/audio.ts`, `.pi/extensions/pi-realtime/playback.ts`, `.ai/docs/realtime-voice/openai-smoke-test.md` |
 | OpenAI WebRTC helper | `.pi/extensions/pi-realtime/providers/openai-webrtc.ts`, `.pi/extensions/pi-realtime/providers/openai-webrtc-bridge.ts`, `.pi/extensions/pi-realtime/media/webrtc-helper/*`, `.ai/docs/realtime-voice/webrtc-helper-goal-plan.md` |
-| Voice safety/echo guard | `.pi/extensions/pi-realtime/safety.ts`, `.pi/extensions/pi-realtime/media/webrtc-helper/client.js`, `.pi/extensions/pi-realtime/prompt.ts` |
 | Usage instrumentation | `.pi/extensions/pi-realtime/usage.ts`, `.pi/extensions/pi-realtime/providers/openai-usage.ts`, `/realtime usage`, `.ai/docs/realtime-voice/usage-instrumentation-goal-plan.md` |
 
 ## Deterministic probes
@@ -38,7 +37,7 @@ This matrix covers the provider-neutral realtime voice system, fake/no-network p
 | `.ai/validation/pi-realtime-openai-adapter-probe.mjs` | OpenAI adapter boundary, API-key guard, context/tool/function-call/result smoke contract, SDK import isolation |
 | `.ai/validation/pi-realtime-openai-mic-probe.mjs` | Raw ffmpeg mic capture, PCM chunking, Realtime audio append contract, shutdown cleanup |
 | `.ai/validation/pi-realtime-openai-playback-probe.mjs` | Raw ffplay audio playback, Realtime output audio event handling, transcript preservation, shutdown cleanup |
-| `.ai/validation/pi-realtime-openai-webrtc-helper-probe.mjs` | WebRTC helper commands, raw-mode AEC warning, browser helper assets, browser-safe auth shape, helper lifecycle, usage forwarding, assistant-output mic hold, no API-key exposure in client assets |
+| `.ai/validation/pi-realtime-openai-webrtc-helper-probe.mjs` | WebRTC helper commands, raw-mode AEC warning, browser helper assets, browser-safe auth shape, helper lifecycle, usage forwarding, no API-key exposure in client assets |
 | `.ai/validation/pi-realtime-usage-probe.mjs` | Usage pricing constants, response/transcription normalization boundary, durable usage events, `/realtime usage` command surface |
 
 ## Commands run

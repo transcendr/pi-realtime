@@ -13,7 +13,6 @@ import { createOpenAIWebRTCClientSecret, hasOpenAIWebRTCCredentials } from "./pr
 import type { ProviderEventSink, RealtimeProviderAdapter } from "./providers/types";
 import type { CitationDeck, ContextPacket, NormalizedProviderEvent, ProviderKind, ProviderSessionId, RealtimeState, VoiceInstructionInput, VoiceToolCallRecord, VoiceToolName, VoiceToolResultRecord, VoiceToolSurface } from "./types";
 import type { Store } from "./store";
-import { hasGroundingOverlap, quoteForStatus, type RecentUserTranscript, VOICE_INSTRUCTION_TRANSCRIPT_WINDOW_MS } from "./safety";
 import { aggregateUsage, renderUsageSummary } from "./usage";
 export type Service = {
 	refresh(ctx: ExtensionContext): void;
@@ -55,7 +54,6 @@ class RealtimeService implements Service {
 	private readonly audioCaptures = new Map<ProviderSessionId, AudioCaptureController>();
 	private readonly audioPlaybacks = new Map<ProviderSessionId, AudioPlaybackController>();
 	private readonly rawEchoWarnings = new Set<ProviderSessionId>();
-	private readonly recentUserTranscripts = new Map<ProviderSessionId, RecentUserTranscript>();
 	private readonly webrtcHelper: WebRTCHelperServer = createWebRTCHelperServer();
 	private readonly providerSink: ProviderEventSink = { onProviderEvent: (event) => void this.handleProviderEvent(event), onProviderAudio: (chunk) => this.handleProviderAudio(chunk) };
 	constructor(private readonly store: Store, private readonly controlPlane: ControlPlane) {}
@@ -70,7 +68,6 @@ class RealtimeService implements Service {
 	async sendTextInput(providerSessionId: ProviderSessionId, text: string): Promise<void> {
 		const adapter = this.adapters.get(providerSessionId);
 		if (!adapter) throw new Error(`No live provider adapter for ${providerSessionId}`);
-		if (text.trim()) this.recentUserTranscripts.set(providerSessionId, { text: text.trim(), at: Date.now() });
 		await adapter.sendTextInput(text);
 	}
 	async startMicrophone(providerSessionId: ProviderSessionId): Promise<void> {
@@ -91,10 +88,12 @@ class RealtimeService implements Service {
 			this.audioCaptures.delete(id);
 		}
 	}
+
 	microphoneStatus(): string {
 		if (this.audioCaptures.size === 0) return "microphone: idle";
 		return ["microphone:", ...[...this.audioCaptures].map(([id, capture]) => `- ${id} ${capture.status}`)].join("\n");
 	}
+
 	async startAudioPlayback(providerSessionId: ProviderSessionId): Promise<void> {
 		const adapter = this.adapters.get(providerSessionId);
 		if (!adapter) throw new Error(`No live provider adapter for ${providerSessionId}`);
@@ -105,6 +104,7 @@ class RealtimeService implements Service {
 		await playback.start((error) => this.handleAudioPlaybackError(providerSessionId, error));
 		await adapter.setAudioOutputEnabled(true);
 	}
+
 	async stopAudioPlayback(providerSessionId?: ProviderSessionId): Promise<void> {
 		const ids = providerSessionId ? [providerSessionId] : [...this.audioPlaybacks.keys()];
 		for (const id of ids) {
@@ -115,10 +115,12 @@ class RealtimeService implements Service {
 			this.audioPlaybacks.delete(id);
 		}
 	}
+
 	audioPlaybackStatus(): string {
 		if (this.audioPlaybacks.size === 0) return "audio playback: idle";
 		return ["audio playback:", ...[...this.audioPlaybacks].map(([id, playback]) => `- ${id} ${playback.status}`)].join("\n");
 	}
+
 	usageText(providerSessionId?: ProviderSessionId, details = false): string {
 		const state = this.store.state();
 		const summary = renderUsageSummary(aggregateUsage(state.usage, providerSessionId), details);
@@ -129,6 +131,7 @@ class RealtimeService implements Service {
 		const sessions = [...state.sessions.values()].map((session) => `- ${session.providerSessionId} ${session.provider}/${session.model} ${session.status}`);
 		return sessions.length > 0 ? [summary, "sessions:", ...sessions].join("\n") : summary;
 	}
+
 	async startWebRTCHelper(providerSessionId: ProviderSessionId, ctx: ExtensionContext): Promise<string> {
 		const session = this.store.state().sessions.get(providerSessionId);
 		if (!session || session.provider !== "openai") throw new Error(`No OpenAI realtime session found for ${providerSessionId}`);
@@ -146,6 +149,7 @@ class RealtimeService implements Service {
 		openHelperUrl(url);
 		return url;
 	}
+
 	async stopWebRTCHelper(providerSessionId?: ProviderSessionId): Promise<void> {
 		const ids = providerSessionId ? [providerSessionId] : [...this.adapters].filter(([, adapter]) => adapter.mediaMode === "webrtc").map(([id]) => id);
 		for (const id of ids) {
@@ -156,12 +160,15 @@ class RealtimeService implements Service {
 		}
 		if (!providerSessionId || ![...this.adapters.values()].some((adapter) => adapter.mediaMode === "webrtc")) await this.webrtcHelper.stop();
 	}
+
 	webRTCHelperStatus(): string {
 		return this.webrtcHelper.status();
 	}
+
 	rawEchoWarningText(): string {
 		return rawEchoWarningText();
 	}
+
 	async startSession(input: { provider: ProviderKind; model: string; personaId?: string; primary?: boolean }, ctx: ExtensionContext): Promise<ProviderSessionId> {
 		const providerSessionId = nextProviderSessionId(input.provider);
 		this.store.append(sessionStarted({ providerSessionId, provider: input.provider, model: input.model, personaId: input.personaId ?? "default" }));
@@ -172,6 +179,7 @@ class RealtimeService implements Service {
 		else this.markPacketsSkipped(providerSessionId, packets, "Provider adapter not implemented yet.");
 		return providerSessionId;
 	}
+
 	async stopSession(providerSessionId: ProviderSessionId, reason = "user"): Promise<void> {
 		await this.stopMicrophone(providerSessionId);
 		await this.stopAudioPlayback(providerSessionId);
@@ -182,23 +190,28 @@ class RealtimeService implements Service {
 		this.fakeAdapters.delete(providerSessionId);
 		this.store.append(sessionStopped(providerSessionId, reason));
 	}
+
 	buildPackets(ctx: ExtensionContext, providerSessionId: ProviderSessionId): ContextPacket[] {
 		const state = this.store.state();
 		const target = this.controlPlane.currentTarget(ctx);
 		const citationDeck = this.controlPlane.observeCitations(ctx);
 		return [buildToolSurfacePacket(this.surface, target), buildStatePacket(state, target, nextContextRevision(state, providerSessionId, "pi_state")), buildCitationPacket(citationDeck, target)];
 	}
+
 	async recordToolResult(result: VoiceToolResultRecord): Promise<void> {
 		this.store.append(voiceToolResultSent(result));
 		await this.adapters.get(result.providerSessionId)?.sendToolResult(result);
 	}
+
 	simulateFakeTranscript(providerSessionId: ProviderSessionId, text: string, final = true): void {
 		const adapter = this.requireFakeAdapter(providerSessionId);
 		adapter.simulateTranscript(text, final);
 	}
+
 	async simulateFakeToolCall(providerSessionId: ProviderSessionId, name: VoiceToolName, args: Record<string, unknown> = {}): Promise<string> {
 		return this.requireFakeAdapter(providerSessionId).simulateToolCall(name, args);
 	}
+
 	async shutdown(): Promise<void> {
 		await this.stopMicrophone();
 		await this.stopAudioPlayback();
@@ -228,17 +241,12 @@ class RealtimeService implements Service {
 	}
 
 	private async handleProviderEvent(event: NormalizedProviderEvent): Promise<void> {
-		this.rememberProviderEvent(event);
 		this.store.append(providerEventObserved(event));
 		if (event.type === "usage") this.store.append(usageObserved(event.observation));
 		this.notifyProviderEvent(event);
 		if (event.type !== "tool_call") return;
 		this.store.append(voiceToolCallReceived(event.call));
 		await this.executeDirectTool(event.call);
-	}
-
-	private rememberProviderEvent(event: NormalizedProviderEvent): void {
-		if (event.type === "user_transcript" && event.final && event.text.trim()) this.recentUserTranscripts.set(event.providerSessionId, { text: event.text.trim(), at: event.at });
 	}
 
 	private notifyProviderEvent(event: NormalizedProviderEvent): void {
@@ -288,20 +296,9 @@ class RealtimeService implements Service {
 	private async sendInstructionFromTool(call: VoiceToolCallRecord, ctx: ExtensionContext): Promise<string> {
 		const instructionText = stringArg(call.arguments.instruction) || stringArg(call.arguments.text);
 		if (!instructionText) return "Rejected pi_send_instruction: missing required non-empty instruction text. Ask the user for clarification or call pi_send_instruction again with the exact Pi action requested.";
-		const safetyRejection = this.validateVoiceInstruction(call, instructionText);
-		if (safetyRejection) return safetyRejection;
 		const deck = this.controlPlane.observeCitations(ctx);
 		await this.controlPlane.instructionSink.sendInstruction({ instructionId: call.voiceToolCallId, provider: call.provider, providerSessionId: call.providerSessionId, voiceToolCallId: call.voiceToolCallId, providerToolCallId: call.providerToolCallId, target: this.controlPlane.currentTarget(ctx), urgency: call.arguments.urgency === "interrupt" ? "interrupt" : "normal", instructionText, userUtteranceSummary: stringArg(call.arguments.userUtteranceSummary), citedCitationIds: stringArrayArg(call.arguments.citedCitationIds), citationDeckRevision: deck.revision });
 		return "Submitted instruction to Pi.";
-	}
-
-	private validateVoiceInstruction(call: VoiceToolCallRecord, instructionText: string): string | undefined {
-		if (call.provider !== "openai") return undefined;
-		const recent = this.recentUserTranscripts.get(call.providerSessionId);
-		if (!recent || Date.now() - recent.at > VOICE_INSTRUCTION_TRANSCRIPT_WINDOW_MS) return "Rejected pi_send_instruction: no recent final user transcript is available to ground this coding instruction. Ask the user to repeat the request before sending Pi work.";
-		const summary = stringArg(call.arguments.userUtteranceSummary);
-		if (hasGroundingOverlap(recent.text, `${instructionText} ${summary}`)) return undefined;
-		return `Rejected pi_send_instruction: requested instruction is not grounded in the latest user transcript (${quoteForStatus(recent.text)}). Ask the user to confirm the exact Pi task before sending work.`;
 	}
 
 	private requireFakeAdapter(providerSessionId: ProviderSessionId): FakeRealtimeProviderAdapter {

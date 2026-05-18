@@ -16,7 +16,7 @@ export async function createOpenAIWebRTCClientSecret(input: { model: string; ins
 			instructions: input.instructions,
 			output_modalities: ["audio"],
 			audio: {
-				input: { transcription: { model: "gpt-4o-mini-transcribe" }, turn_detection: { type: "semantic_vad", create_response: true, interrupt_response: false } },
+				input: { transcription: { model: "gpt-4o-mini-transcribe" }, turn_detection: { type: "semantic_vad", create_response: true, interrupt_response: true } },
 				output: { voice: "marin" },
 			},
 			tools: input.toolSurface.tools.map(toOpenAITool),
