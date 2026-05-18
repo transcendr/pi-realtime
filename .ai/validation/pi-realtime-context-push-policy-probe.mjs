@@ -46,6 +46,8 @@ assert.match(providerTypes, /RealtimeContextPushRequest/);
 assert.match(updates, /<backend_update kind=/);
 assert.match(updates, /not a user request/);
 assert.match(updates, /Do not call request/);
+assert.match(updates, /project-controlled system update/);
+assert.match(updates, /you may quote that payload text/);
 assert.match(updates, /realtimeUpdateResponseInstructions/);
 assert.match(providerTypes, /ToolResultResponsePolicy = "none" \| "continue" \| "final_ack"/);
 assert.match(providerTypes, /pushContext\(input: RealtimeContextPushRequest\)/);
@@ -81,6 +83,7 @@ assert.match(prompt, /Use the request tool for all work requests/);
 assert.match(prompt, /deliveryHint='progress'/);
 assert.match(prompt, /Never describe internal routing/);
 assert.match(prompt, /backend_update kind=ack/);
+assert.match(prompt, /project-controlled text/);
 assert.match(prompt, /Do not call request in response to a backend_update packet/);
 assert.match(prompt, /Never send multiple repeated request tool calls/);
 
