@@ -1,5 +1,17 @@
 # pi-realtime Agent Guidance
 
+## ZERO-TOLERANCE PROJECT RULE: WE ARE NOT VIBE CODING
+
+- I AM NOT A VIBE CODER. DO NOT OPERATE LIKE ONE.
+- This repo is for careful engineering, not “ship a hack and hope.”
+- Do not respond to realtime audio bugs, feedback loops, cost surprises, hallucinated tool calls, provider weirdness, or user safety issues by immediately changing behavior.
+- First investigate root cause with evidence: event logs, provider events, helper logs, session state, exact reproduction steps, and code-path tracing.
+- Do not paper over symptoms by disabling core realtime features such as barge-in, interruption, streaming, WebRTC behavior, or provider semantics unless the user explicitly approves that tradeoff.
+- Do not add prompt-only fixes, cooldowns, mutes, heuristics, or rejection guards as a substitute for root-cause analysis.
+- If a mitigation is proposed, label it as a mitigation, explain what root cause it does and does not address, and ask before implementation when it changes product behavior.
+- Do not treat green gates as proof of live OpenAI/WebRTC/microphone behavior unless the gate actually tests that live behavior.
+- Preserve provider-neutral architecture and realtime interaction semantics unless the user explicitly chooses a different design.
+
 This repository is a Pi extension project. Use the `pi-extension-dev` skill for setup, implementation, validation, and review work.
 
 ## Required protocol

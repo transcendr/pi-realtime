@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { summarizeRealtimePayload, type DebugTraceRecorder } from "../../debug-trace";
 import type { NormalizedProviderEvent, ProviderSessionId, ProviderKind } from "../../types";
 import type { WebRTCHelperInboundEvent, WebRTCHelperOutboundEvent, WebRTCHelperRegistrationConfig, WebRTCHelperServer, WebRTCHelperSessionConfig, WebRTCHelperSink } from "./protocol";
 
@@ -15,6 +16,7 @@ type HelperSession = {
 	config: WebRTCHelperSessionConfig;
 	createClientSecret(): Promise<unknown>;
 	normalizeUsageEvent?: WebRTCHelperRegistrationConfig["normalizeUsageEvent"];
+	trace?: DebugTraceRecorder;
 	sink: WebRTCHelperSink;
 	outbox: WebRTCHelperOutboundEvent[];
 	seq: number;
@@ -56,20 +58,26 @@ class LocalWebRTCHelperServer implements WebRTCHelperServer {
 	}
 
 	registerSession(config: WebRTCHelperRegistrationConfig, sink: WebRTCHelperSink): void {
-		const { createClientSecret, normalizeUsageEvent, ...sessionConfig } = config;
-		this.sessions.set(config.providerSessionId, { config: sessionConfig, createClientSecret, normalizeUsageEvent, sink, outbox: [], seq: 0, lastSeenAt: Date.now() });
+		const { createClientSecret, normalizeUsageEvent, trace, ...sessionConfig } = config;
+		const session = { config: { ...sessionConfig, debugTracePath: trace?.path }, createClientSecret, normalizeUsageEvent, trace, sink, outbox: [], seq: 0, lastSeenAt: Date.now() };
+		this.sessions.set(config.providerSessionId, session);
+		trace?.write({ source: "helper_server", direction: "lifecycle", action: "registerSession", model: config.model });
 	}
 
 	unregisterSession(providerSessionId: ProviderSessionId, reason: string): void {
 		const session = this.sessions.get(providerSessionId);
 		this.sessions.delete(providerSessionId);
-		if (session) session.sink.onProviderEvent(this.normalize(session, { type: "disconnected", reason }) as NormalizedProviderEvent);
+		if (!session) return;
+		session.trace?.write({ source: "helper_server", direction: "lifecycle", action: "unregisterSession", reason });
+		session.sink.onProviderEvent(this.normalize(session, { type: "disconnected", reason }) as NormalizedProviderEvent);
 	}
 
 	enqueue(providerSessionId: ProviderSessionId, event: Record<string, unknown>): void {
 		const session = this.requireSession(providerSessionId);
-		session.outbox.push({ id: ++session.seq, event });
+		const id = ++session.seq;
+		session.outbox.push({ id, event });
 		session.outbox = session.outbox.slice(-200);
+		session.trace?.write({ source: "helper_server", direction: "outbox_enqueue", outboxId: id, summary: summarizeRealtimePayload(event) });
 	}
 
 	urlFor(providerSessionId: ProviderSessionId): string {
@@ -124,14 +132,24 @@ class LocalWebRTCHelperServer implements WebRTCHelperServer {
 
 	private async handleInboundEvent(req: IncomingMessage, res: ServerResponse, session: HelperSession): Promise<void> {
 		const inbound = await readJson<WebRTCHelperInboundEvent>(req);
+		if (inbound.type === "trace") {
+			session.trace?.write({ source: "browser", ...inbound.trace, providerEventId: inbound.providerEventId });
+			return this.respond(res, 200, { ok: true });
+		}
+		session.trace?.write({ source: "helper_server", direction: "inbound_normalize", inboundType: inbound.type, providerEventId: inbound.providerEventId });
 		const event = this.normalize(session, inbound);
-		if (event) session.sink.onProviderEvent(event);
+		if (event) {
+			session.trace?.write({ source: "helper_server", direction: "normalized_event", eventType: event.type, providerEventId: event.providerEventId, localSeq: event.localSeq });
+			session.sink.onProviderEvent(event);
+		}
 		this.respond(res, 200, { ok: true });
 	}
 
 	private respondOutbox(res: ServerResponse, url: URL, session: HelperSession): void {
 		const after = Number(url.searchParams.get("after") ?? "0");
-		this.respond(res, 200, { events: session.outbox.filter((event) => event.id > after) });
+		const events = session.outbox.filter((event) => event.id > after);
+		session.trace?.write({ source: "helper_server", direction: "outbox_poll", after, returnedIds: events.map((event) => event.id) });
+		this.respond(res, 200, { events });
 	}
 
 	private normalize(session: HelperSession, inbound: WebRTCHelperInboundEvent): NormalizedProviderEvent | undefined {

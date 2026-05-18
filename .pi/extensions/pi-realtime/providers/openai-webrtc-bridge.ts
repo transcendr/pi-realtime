@@ -1,3 +1,4 @@
+import type { DebugTraceRecorder } from "../debug-trace";
 import type { ContextPacket, DisconnectReason, ProviderDeliveryReceipt, ProviderKind, ProviderSessionId, VoiceToolResultRecord, VoiceToolSurface } from "../types";
 import type { ProviderConnectConfig, ProviderEventSink, RealtimeProviderAdapter, VoiceResponseRequest } from "./types";
 import type { WebRTCHelperServer } from "../media/webrtc-helper/protocol";
@@ -9,11 +10,11 @@ export class OpenAIWebRTCBridgeAdapter implements RealtimeProviderAdapter {
 	readonly mediaMode = "webrtc" as const;
 	private sink: ProviderEventSink | undefined;
 
-	constructor(readonly providerSessionId: ProviderSessionId, private readonly helper: WebRTCHelperServer, private readonly createClientSecret: () => Promise<unknown>) {}
+	constructor(readonly providerSessionId: ProviderSessionId, private readonly helper: WebRTCHelperServer, private readonly createClientSecret: () => Promise<unknown>, private readonly trace?: DebugTraceRecorder) {}
 
 	async connect(config: ProviderConnectConfig, sink: ProviderEventSink): Promise<void> {
 		this.sink = sink;
-		this.helper.registerSession({ provider: config.provider, providerSessionId: config.providerSessionId, model: config.model, instructions: config.systemPrompt, toolSurface: config.toolSurface, initialContext: config.initialContext, createClientSecret: this.createClientSecret, normalizeUsageEvent: (input) => input.source === "response" ? usageFromOpenAIResponseDone(input.realtimeEvent, { providerSessionId: this.providerSessionId, model: config.model, providerEventId: input.providerEventId, at: input.at }) : usageFromOpenAIInputTranscription(input.realtimeEvent, { providerSessionId: this.providerSessionId, model: config.model, providerEventId: input.providerEventId, at: input.at }) }, { onProviderEvent: (event) => sink.onProviderEvent(event) });
+		this.helper.registerSession({ provider: config.provider, providerSessionId: config.providerSessionId, model: config.model, instructions: config.systemPrompt, toolSurface: config.toolSurface, initialContext: config.initialContext, createClientSecret: this.createClientSecret, trace: this.trace, normalizeUsageEvent: (input) => input.source === "response" ? usageFromOpenAIResponseDone(input.realtimeEvent, { providerSessionId: this.providerSessionId, model: config.model, providerEventId: input.providerEventId, at: input.at }) : usageFromOpenAIInputTranscription(input.realtimeEvent, { providerSessionId: this.providerSessionId, model: config.model, providerEventId: input.providerEventId, at: input.at }) }, { onProviderEvent: (event) => sink.onProviderEvent(event) });
 		sink.onProviderEvent({ type: "connected", provider: "openai", providerSessionId: this.providerSessionId, localSeq: Date.now(), at: Date.now() });
 	}
 
@@ -59,7 +60,7 @@ export class OpenAIWebRTCBridgeAdapter implements RealtimeProviderAdapter {
 	}
 }
 
-export function createOpenAIWebRTCBridgeAdapter(providerSessionId: ProviderSessionId, helper: WebRTCHelperServer, createClientSecret: () => Promise<unknown>): OpenAIWebRTCBridgeAdapter {
-	return new OpenAIWebRTCBridgeAdapter(providerSessionId, helper, createClientSecret);
+export function createOpenAIWebRTCBridgeAdapter(providerSessionId: ProviderSessionId, helper: WebRTCHelperServer, createClientSecret: () => Promise<unknown>, trace?: DebugTraceRecorder): OpenAIWebRTCBridgeAdapter {
+	return new OpenAIWebRTCBridgeAdapter(providerSessionId, helper, createClientSecret, trace);
 }
 
