@@ -1,5 +1,5 @@
 import type { RealtimeFunctionTool } from "openai/resources/realtime/realtime";
-import type { ContextPacket, VoiceToolName, VoiceToolSurface } from "../types";
+import type { ContextPacket, VoiceToolName, VoiceToolSurface } from "../../types";
 
 export function hasOpenAIRealtimeCredentials(env: NodeJS.ProcessEnv = process.env): boolean {
 	return typeof env.OPENAI_API_KEY === "string" && env.OPENAI_API_KEY.trim().length > 0;

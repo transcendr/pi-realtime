@@ -46,13 +46,13 @@ The core design target is provider neutrality. OpenAI Realtime, Gemini Live, and
   view.ts                 # status/widget rendering
   providers/
     types.ts              # normalized adapter contract
-    registry.ts           # provider factory registry; no SDK imports except factories
+    runtime.ts            # provider runtime registry; no SDK imports except provider runtime factories
     fake.ts               # deterministic no-network adapter
-    openai.ts             # OpenAI Realtime adapter
-    gemini.ts             # Gemini Live adapter
+    openai/               # OpenAI Realtime adapter, usage, WebRTC bridge, SDK helpers
+    gemini/               # Gemini Live adapter and SDK helpers when implemented
 ```
 
-Hard boundary: `runtime.ts`, `commands.ts`, `service.ts`, `control-plane.ts`, `state-packets.ts`, `events.ts`, `store.ts`, `prompt.ts`, `tools.ts`, and `view.ts` must not import `openai`, `@google/genai`, or provider-specific event types. Only `providers/openai.ts` and `providers/gemini.ts` may import their SDKs.
+Hard boundary: `runtime.ts`, `commands.ts`, `service.ts`, `control-plane.ts`, `state-packets.ts`, `events.ts`, `store.ts`, `prompt.ts`, `tools.ts`, and `view.ts` must not import `openai`, `@google/genai`, or provider-specific event types. Vendor SDK imports belong under provider-owned directories such as `providers/openai/` and `providers/gemini/`, not as repeated provider-prefixed files in the shared provider root.
 
 ## 4. Architectural layers
 
@@ -593,7 +593,7 @@ Architecture and fake-provider completion requires deterministic probes under `.
 
 After the fake provider proves the architecture:
 
-1. Add `providers/openai.ts` importing `OpenAIRealtimeWebSocket` only inside that file.
+1. Add the OpenAI adapter under `providers/openai/`, importing `OpenAIRealtimeWebSocket` only inside that provider-owned directory.
 2. Support text/context/tool-call smoke path first.
 3. Use provider-neutral `ContextPacket` delivery via the best OpenAI mapping:
    - critical policy/tool changes: session instructions/session update when safe;

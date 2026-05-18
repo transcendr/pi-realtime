@@ -3,8 +3,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const openai = readFileSync(".pi/extensions/pi-realtime/providers/openai.ts", "utf8");
+const openai = readFileSync(".pi/extensions/pi-realtime/providers/openai/index.ts", "utf8");
 const service = readFileSync(".pi/extensions/pi-realtime/service.ts", "utf8");
+const runtime = readFileSync(".pi/extensions/pi-realtime/providers/runtime.ts", "utf8");
+const openaiRuntime = readFileSync(".pi/extensions/pi-realtime/providers/openai/runtime.ts", "utf8");
 const pkg = JSON.parse(readFileSync("package.json", "utf8"));
 
 assert.match(openai, /OpenAIRealtimeWebSocket/);
@@ -26,16 +28,20 @@ assert.match(openai, /sendToolResult/);
 assert.match(openai, /sendTextInput/);
 assert.match(openai, /input_text/);
 assert.match(openai, /requestResponse/);
-assert.match(service, /hasOpenAIRealtimeCredentials\(\)/);
-assert.match(service, /createOpenAIRealtimeProvider/);
+assert.match(openaiRuntime, /hasOpenAIRealtimeCredentials\(\)/);
+assert.match(openaiRuntime, /createOpenAIRealtimeProvider/);
+assert.doesNotMatch(runtime, /hasOpenAIRealtimeCredentials\(\)|createOpenAIRealtimeProvider/);
+assert.doesNotMatch(service, /hasOpenAIRealtimeCredentials\(\)/);
+assert.doesNotMatch(service, /createOpenAIRealtimeProvider/);
 assert.match(service, /sendTextInput\(providerSessionId/);
 assert.match(service, /Realtime \$\{event\.provider\}: \$\{event\.text\}/);
 assert.equal(pkg.dependencies?.openai?.startsWith("^6."), true);
 
-const allowed = new Set([join(".pi/extensions/pi-realtime/providers/openai.ts")]);
+const allowed = new Set([join(".pi/extensions/pi-realtime/providers/openai/index.ts"), join(".pi/extensions/pi-realtime/providers/openai/shared.ts")]);
 for (const [file, source] of [
   [".pi/extensions/pi-realtime/service.ts", service],
-  [".pi/extensions/pi-realtime/providers/openai.ts", openai],
+  [".pi/extensions/pi-realtime/providers/openai/index.ts", openai],
+  [".pi/extensions/pi-realtime/providers/openai/shared.ts", readFileSync(".pi/extensions/pi-realtime/providers/openai/shared.ts", "utf8")],
   [".pi/extensions/pi-realtime/providers/fake.ts", readFileSync(".pi/extensions/pi-realtime/providers/fake.ts", "utf8")],
 ]) {
   if (!allowed.has(file)) assert.doesNotMatch(source, /from "openai|openai\/realtime|openai\/resources/);

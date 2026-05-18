@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { EVENT_VERSION, type CitationDeck, type CitationDeckSummary, type ContextPacket, type ContextPacketSummary, type NormalizedProviderEvent, type ProviderDeliveryReceipt, type ProviderKind, type ProviderSessionId, type RealtimeConfig, type RealtimeEvent, type RealtimeHistorySummary, type RealtimeState, type UsageObservation, type VoiceInstructionInput, type VoiceInstructionReceipt, type VoiceSessionRecord, type VoiceToolCallRecord, type VoiceToolResultRecord } from "./types";
+import { EVENT_VERSION, type CitationDeck, type CitationDeckSummary, type ContextPacket, type ContextPacketSummary, type NormalizedProviderEvent, type ProviderDeliveryReceipt, type ProviderKind, type ProviderSessionId, type RealtimeConfig, type RealtimeConfigPatch, type RealtimeEvent, type RealtimeHistorySummary, type RealtimeState, type UsageObservation, type VoiceInstructionInput, type VoiceInstructionReceipt, type VoiceSessionRecord, type VoiceToolCallRecord, type VoiceToolResultRecord } from "./types";
 
-export const defaultConfig: RealtimeConfig = { primaryProviderSessionId: null, defaultProvider: "fake", defaultPersonaId: "default" };
+export const defaultConfig: RealtimeConfig = { primaryProviderSessionId: null, defaultProvider: "fake", defaultPersonaId: "default", providerPreferences: {} };
 
 export function createInitialState(config: RealtimeConfig = defaultConfig): RealtimeState {
-	return { config: { ...config }, sessions: new Map(), primaryProviderSessionId: config.primaryProviderSessionId, pendingToolCalls: new Map(), contextRevisions: new Map(), citationDeck: null, usage: [], history: [] };
+	return { config: { ...config }, sessions: new Map(), primaryProviderSessionId: config.primaryProviderSessionId, pendingToolCalls: new Map(), contextRevisions: new Map(), citationDeck: null, usage: [], usageResets: [], history: [] };
 }
 
 export function replayEvents(events: readonly RealtimeEvent[], config: RealtimeConfig = defaultConfig): RealtimeState {
@@ -25,6 +25,7 @@ export function applyEvent(state: RealtimeState, event: RealtimeEvent): void {
 		case "voice_tool_result_sent": return void state.pendingToolCalls.delete(event.result.voiceToolCallId);
 		case "voice_instruction_submitted": return void (state.lastInstruction = { ...event.instruction });
 		case "usage_observed": return void state.usage.push({ ...event.observation });
+		case "usage_reset": return void state.usageResets.push({ at: event.at, providerSessionId: event.providerSessionId });
 		case "citation_deck_observed": return applyCitationDeck(state, event.deck);
 		case "config_changed": return applyConfigPatch(state, event.patch);
 	}
@@ -67,8 +68,10 @@ function applyCitationDeck(state: RealtimeState, deck: CitationDeckSummary): voi
 	state.citationDeck = { revision: deck.revision, source: "pinotator", observedAt: deck.observedAt, active };
 }
 
-function applyConfigPatch(state: RealtimeState, patch: Partial<RealtimeConfig>): void {
-	state.config = { ...state.config, ...patch };
+function applyConfigPatch(state: RealtimeState, patch: RealtimeConfigPatch): void {
+	const { openaiWebRTCEnabled, providerPreferences, ...rest } = patch;
+	const migratedOpenAI = typeof openaiWebRTCEnabled === "boolean" ? { openai: { ...state.config.providerPreferences.openai, autoMediaMode: openaiWebRTCEnabled ? "webrtc" as const : "none" as const } } : {};
+	state.config = { ...state.config, ...rest, providerPreferences: { ...state.config.providerPreferences, ...providerPreferences, ...migratedOpenAI } };
 	state.primaryProviderSessionId = state.config.primaryProviderSessionId;
 }
 
@@ -108,18 +111,22 @@ export function usageObserved(observation: UsageObservation, at = Date.now()): R
 	return { version: EVENT_VERSION, kind: "usage_observed", eventId: id("evt"), at, observation };
 }
 
+export function usageReset(providerSessionId?: ProviderSessionId, at = Date.now()): RealtimeEvent {
+	return { version: EVENT_VERSION, kind: "usage_reset", eventId: id("evt"), at, providerSessionId };
+}
+
 export function citationDeckObserved(deck: CitationDeck, at = Date.now()): RealtimeEvent {
 	return { version: EVENT_VERSION, kind: "citation_deck_observed", eventId: id("evt"), at, deck: summarizeDeck(deck) };
 }
 
-export function configChanged(patch: Partial<RealtimeConfig>, at = Date.now()): RealtimeEvent {
+export function configChanged(patch: RealtimeConfigPatch, at = Date.now()): RealtimeEvent {
 	return { version: EVENT_VERSION, kind: "config_changed", eventId: id("evt"), at, patch };
 }
 
 export function isRealtimeEvent(value: unknown): value is RealtimeEvent {
 	if (!isRecord(value)) return false;
 	if (value.version !== EVENT_VERSION || typeof value.kind !== "string" || typeof value.eventId !== "string" || typeof value.at !== "number") return false;
-	return ["session_started", "session_stopped", "session_primary_changed", "provider_event", "context_packet_sent", "voice_tool_call_received", "voice_tool_result_sent", "voice_instruction_submitted", "usage_observed", "citation_deck_observed", "config_changed"].includes(value.kind);
+	return ["session_started", "session_stopped", "session_primary_changed", "provider_event", "context_packet_sent", "voice_tool_call_received", "voice_tool_result_sent", "voice_instruction_submitted", "usage_observed", "usage_reset", "citation_deck_observed", "config_changed"].includes(value.kind);
 }
 
 export function summarizePacket(packet: ContextPacket): ContextPacketSummary {

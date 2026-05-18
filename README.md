@@ -97,4 +97,4 @@ Use `/realtime usage --details` during live tests to inspect durable usage obser
 - `.ai/docs/realtime-voice/webrtc-helper-goal-plan.md`
 - `.ai/docs/realtime-voice/usage-instrumentation-goal-plan.md`
 
-Future provider work should keep OpenAI/Gemini SDK imports isolated to `providers/openai.ts` and `providers/gemini.ts`.
+Future provider work should keep vendor SDK imports isolated under provider-owned directories such as `providers/openai/` and `providers/gemini/`; avoid repeated provider-prefixed filenames in the shared provider root.

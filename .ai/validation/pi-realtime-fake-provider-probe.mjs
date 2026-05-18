@@ -4,6 +4,9 @@ import { readFileSync } from "node:fs";
 
 const fakeSource = readFileSync(".pi/extensions/pi-realtime/providers/fake.ts", "utf8");
 const serviceSource = readFileSync(".pi/extensions/pi-realtime/service.ts", "utf8");
+const toolsSource = readFileSync(".pi/extensions/pi-realtime/tools.ts", "utf8");
+const fakeRuntimeSource = readFileSync(".pi/extensions/pi-realtime/providers/fake.ts", "utf8");
+const runtimeSource = readFileSync(".pi/extensions/pi-realtime/providers/runtime.ts", "utf8");
 const commandsSource = readFileSync(".pi/extensions/pi-realtime/commands.ts", "utf8");
 const controlPlaneSource = readFileSync(".pi/extensions/pi-realtime/control-plane.ts", "utf8");
 
@@ -13,11 +16,13 @@ assert.match(fakeSource, /simulateToolCall/);
 assert.match(fakeSource, /updateContext/);
 assert.match(fakeSource, /sendToolResult/);
 assert.doesNotMatch(fakeSource, /from "openai"|from "@google\/genai"|WebSocket/);
-assert.match(serviceSource, /createFakeRealtimeProvider/);
+assert.match(fakeRuntimeSource, /createFakeRealtimeProvider/);
+assert.match(fakeRuntimeSource, /createFakeProviderRuntime/);
+assert.doesNotMatch(serviceSource, /createFakeRealtimeProvider/);
 assert.match(serviceSource, /executeDirectTool/);
-assert.match(serviceSource, /pi_send_instruction/);
-assert.match(serviceSource, /pinotator_citation_resolve/);
-assert.match(serviceSource, /missing required non-empty instruction text/);
+assert.match(toolsSource, /pi_send_instruction/);
+assert.match(toolsSource, /pinotator_citation_resolve/);
+assert.match(toolsSource, /missing required non-empty instruction text/);
 assert.doesNotMatch(serviceSource, /Voice provider requested Pi action without instruction text/);
 assert.match(serviceSource, /\.disconnect\(/);
 assert.match(commandsSource, /fake transcript/);

@@ -4,14 +4,16 @@ import { readFileSync } from "node:fs";
 
 const packetSource = readFileSync(".pi/extensions/pi-realtime/state-packets.ts", "utf8");
 const serviceSource = readFileSync(".pi/extensions/pi-realtime/service.ts", "utf8");
+const toolsSource = readFileSync(".pi/extensions/pi-realtime/tools.ts", "utf8");
 
 assert.match(packetSource, /buildCitationDeckFromBranch/);
 assert.match(packetSource, /pinotator\.citations/);
 assert.match(packetSource, /display_ref/);
 assert.match(packetSource, /alias/);
 assert.match(packetSource, /citationId/);
-assert.match(serviceSource, /pinotator_citation_resolve/);
-assert.match(serviceSource, /resolveCitation/);
+assert.match(toolsSource, /pinotator_citation_resolve/);
+assert.match(toolsSource, /resolveCitation/);
+assert.doesNotMatch(serviceSource, /resolveCitation/);
 
 function parse(content) {
   const regex = /<pinotator_citation\s+([^>]*)>([\s\S]*?)<\/pinotator_citation>/g;

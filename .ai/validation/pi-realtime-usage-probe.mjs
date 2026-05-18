@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const usage = readFileSync(".pi/extensions/pi-realtime/usage.ts", "utf8");
-const openaiUsage = readFileSync(".pi/extensions/pi-realtime/providers/openai-usage.ts", "utf8");
+const openaiUsage = readFileSync(".pi/extensions/pi-realtime/providers/openai/usage.ts", "utf8");
 const types = readFileSync(".pi/extensions/pi-realtime/types.ts", "utf8");
 const events = readFileSync(".pi/extensions/pi-realtime/events.ts", "utf8");
 const service = readFileSync(".pi/extensions/pi-realtime/service.ts", "utf8");
@@ -26,16 +26,23 @@ assert.match(openaiUsage, /cached_tokens_details/);
 
 assert.match(types, /type: "usage"; observation: UsageObservation/);
 assert.match(types, /kind: "usage_observed"/);
+assert.match(types, /kind: "usage_reset"/);
 assert.match(types, /usage: UsageObservation\[\]/);
+assert.match(types, /usageResets: UsageReset\[\]/);
 assert.match(events, /usageObserved/);
+assert.match(events, /usageReset/);
 assert.match(events, /event\.kind === "usage_observed"/);
 assert.match(events, /state\.usage\.push/);
+assert.match(events, /state\.usageResets\.push/);
 assert.match(events, /event\.observation\.providerSessionId/);
 assert.match(service, /usageObserved\(event\.observation\)/);
 assert.match(service, /usageText/);
+assert.match(service, /resetUsage/);
 assert.match(commands, /cmd === "usage"/);
 assert.match(commands, /usage --details/);
+assert.match(commands, /usage reset/);
 assert.match(commands, /service\.usageText/);
+assert.match(commands, /service\.resetUsage/);
 
 function dollars(total, cached, input, cachedInput) { return ((total - cached) * input + cached * cachedInput) / 1_000_000; }
 assert.equal(dollars(1000, 0, 4, 0.4), 0.004);

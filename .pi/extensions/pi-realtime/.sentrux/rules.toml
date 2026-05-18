@@ -11,12 +11,12 @@ order = 0
 
 [[layers]]
 name = "runtime"
-paths = ["runtime.ts", "commands.ts", "tools.ts", "ui.ts"]
+paths = ["runtime.ts", "commands.ts", "ui.ts"]
 order = 1
 
 [[layers]]
 name = "application"
-paths = ["service.ts", "store.ts", "events.ts", "view.ts", "model.ts"]
+paths = ["service.ts", "store.ts", "events.ts", "view.ts", "model.ts", "tools.ts"]
 order = 2
 
 [[layers]]

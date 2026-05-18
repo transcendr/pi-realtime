@@ -18,9 +18,9 @@ This matrix covers the provider-neutral realtime voice system, fake/no-network p
 | Fake provider | `.pi/extensions/pi-realtime/providers/fake.ts` |
 | Lifecycle/context hardening | `.pi/extensions/pi-realtime/runtime.ts`, `.pi/extensions/pi-realtime/context.ts` |
 | Commands | `.pi/extensions/pi-realtime/commands.ts` |
-| OpenAI raw adapter | `.pi/extensions/pi-realtime/providers/openai.ts`, `.pi/extensions/pi-realtime/audio.ts`, `.pi/extensions/pi-realtime/playback.ts`, `.ai/docs/realtime-voice/openai-smoke-test.md` |
-| OpenAI WebRTC helper | `.pi/extensions/pi-realtime/providers/openai-webrtc.ts`, `.pi/extensions/pi-realtime/providers/openai-webrtc-bridge.ts`, `.pi/extensions/pi-realtime/media/webrtc-helper/*`, `.ai/docs/realtime-voice/webrtc-helper-goal-plan.md` |
-| Usage instrumentation | `.pi/extensions/pi-realtime/usage.ts`, `.pi/extensions/pi-realtime/providers/openai-usage.ts`, `/realtime usage`, `.ai/docs/realtime-voice/usage-instrumentation-goal-plan.md` |
+| OpenAI raw adapter | `.pi/extensions/pi-realtime/providers/openai/index.ts`, `.pi/extensions/pi-realtime/audio.ts`, `.pi/extensions/pi-realtime/playback.ts`, `.ai/docs/realtime-voice/openai-smoke-test.md` |
+| OpenAI WebRTC helper | `.pi/extensions/pi-realtime/providers/openai/webrtc.ts`, `.pi/extensions/pi-realtime/providers/openai/webrtc-bridge.ts`, `.pi/extensions/pi-realtime/media/webrtc-helper/*`, `.ai/docs/realtime-voice/webrtc-helper-goal-plan.md` |
+| Usage instrumentation | `.pi/extensions/pi-realtime/usage.ts`, `.pi/extensions/pi-realtime/providers/openai/usage.ts`, `/realtime usage`, `.ai/docs/realtime-voice/usage-instrumentation-goal-plan.md` |
 
 ## Deterministic probes
 
