@@ -184,6 +184,7 @@ export type VoiceInstructionInput = {
 	providerToolCallId?: string;
 	target: PiTargetRef;
 	urgency: "normal" | "interrupt";
+	deliveryHint?: "work" | "progress";
 	instructionText: string;
 	userUtteranceSummary?: string;
 	citedCitationIds: CitationId[];

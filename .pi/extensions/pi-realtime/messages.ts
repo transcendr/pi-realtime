@@ -38,6 +38,7 @@ function realtimeRequestContextLines(input: VoiceInstructionInput): string[] {
 	if (input.citationDeckRevision !== undefined) lines.push(`- Realtime citation deck revision: ${input.citationDeckRevision}`);
 	lines.push(`- Realtime provider session id: ${input.providerSessionId}`);
 	lines.push(`- Urgency: ${input.urgency}`);
+	if (input.deliveryHint) lines.push(`- Delivery hint: ${input.deliveryHint}`);
 	if (input.voiceToolCallId) lines.push(`- Realtime request call id: ${input.voiceToolCallId}`);
 	return lines;
 }

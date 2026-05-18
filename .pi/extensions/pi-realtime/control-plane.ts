@@ -39,7 +39,7 @@ function createInstructionSink(pi: ExtensionAPI, store: Store, getContext: () =>
 	return {
 		async sendInstruction(input) {
 			const ctx = getContext();
-			const delivery = chooseDelivery(ctx, input.urgency);
+			const delivery = chooseDelivery(ctx, input);
 			try {
 				sendRealtimeRequest(pi, input, delivery);
 				const receipt: VoiceInstructionReceipt = { status: "submitted", delivery };
@@ -54,9 +54,10 @@ function createInstructionSink(pi: ExtensionAPI, store: Store, getContext: () =>
 	};
 }
 
-function chooseDelivery(ctx: ExtensionContext | undefined, urgency: VoiceInstructionInput["urgency"]): VoiceInstructionReceipt["delivery"] {
+function chooseDelivery(ctx: ExtensionContext | undefined, input: Pick<VoiceInstructionInput, "urgency" | "deliveryHint">): VoiceInstructionReceipt["delivery"] {
 	if (!ctx || ctx.isIdle()) return "immediate";
-	return urgency === "interrupt" ? "steer" : "followUp";
+	if (input.urgency === "interrupt" || input.deliveryHint === "progress") return "steer";
+	return "followUp";
 }
 
 function currentTarget(ctx: ExtensionContext): PiTargetRef {
