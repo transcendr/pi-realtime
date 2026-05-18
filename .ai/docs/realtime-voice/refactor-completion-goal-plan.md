@@ -57,8 +57,8 @@ Keep in `service.ts`:
 Move out of `service.ts`:
 
 - OpenAI runtime construction: to `providers/openai/runtime.ts`.
-- local microphone/playback process maps and status formatting: to a focused local media module.
-- direct voice tool implementation details: to a focused voice tool module.
+- local microphone/playback process maps and status formatting: to `audio-manager.ts`, because it manages active per-session audio resources;
+- direct voice tool implementation details: to `tools.ts`.
 
 Do not move persistence/replay out of `events.ts`/`store.ts`; that already matches the Pi extension protocol.
 
@@ -88,33 +88,42 @@ import { createFakeProviderRuntime } from "./fake";
 import { createOpenAIProviderRuntime } from "./openai/runtime";
 ```
 
-### Local media module
+### Audio manager module
 
-Add one focused module, not a controller stack:
+Add one focused module with a concrete ownership name:
 
 ```text
-local-media.ts
+audio-manager.ts
 ```
 
 Responsibility:
 
+- manage active mic/playback resources per provider session;
 - own `Map<ProviderSessionId, AudioCaptureController>`;
 - own `Map<ProviderSessionId, AudioPlaybackController>`;
 - start/stop microphone streaming through a supplied `RealtimeProviderAdapter`;
-- start/stop playback through a supplied `RealtimeProviderAdapter`;
+- start/stop audio playback through a supplied `RealtimeProviderAdapter`;
 - render microphone/playback status;
-- write provider audio chunks to active playback;
-- stop all local media during shutdown;
+- route provider audio chunks to active playback;
+- clean up on errors/shutdown;
 - surface errors through a small callback, not through direct Pi UI dependencies.
+
+Relationship to existing files:
+
+```text
+audio.ts          # low-level mic capture primitive
+playback.ts       # low-level playback primitive
+audio-manager.ts  # owns active per-session audio resources
+```
 
 It may import `audio.ts` and `playback.ts`. It must not import provider SDKs or `ControlPlane`.
 
-### Voice tool module
+### Tools module
 
-Add one focused module:
+Use the canonical Pi extension module name:
 
 ```text
-voice-tools.ts
+tools.ts
 ```
 
 Responsibility:
@@ -124,7 +133,7 @@ Responsibility:
 - preserve the current empty-instruction rejection text;
 - return result text only; let `service.ts` append/send `voiceToolResultSent()`.
 
-It may depend on `ControlPlane`, `ExtensionContext`, state packet builders, and a state/status renderer. It must not own provider adapters or local media.
+It may depend on `ControlPlane`, `ExtensionContext`, state packet builders, and a state/status renderer. It must not own provider adapters or audio resources.
 
 ## Implementation plan
 
@@ -162,17 +171,17 @@ Suggested commit:
 refactor: move OpenAI runtime construction behind provider boundary
 ```
 
-### Phase 2 — Extract local media runtime resources from `service.ts`
+### Phase 2 — Extract active audio resource management from `service.ts`
 
 Files:
 
-- create `.pi/extensions/pi-realtime/local-media.ts`
+- create `.pi/extensions/pi-realtime/audio-manager.ts`
 - edit `.pi/extensions/pi-realtime/service.ts`
 - update validation probes that assert microphone/playback lifecycle strings
 
 Steps:
 
-1. Introduce `createLocalMedia()` with methods equivalent to the current service API subset:
+1. Introduce `createAudioManager()` with methods equivalent to the current service API subset:
    - `startMicrophone(providerSessionId, adapter)`
    - `stopMicrophone(providerSessionId?)`
    - `microphoneStatus()`
@@ -181,15 +190,15 @@ Steps:
    - `audioPlaybackStatus()`
    - `writeProviderAudio(providerSessionId, audio)`
    - `shutdown()`
-2. Pass an `onError(providerSessionId, kind, error)` callback into `createLocalMedia()` so service remains responsible for UI notification policy.
+2. Pass an `onError(providerSessionId, kind, error)` callback into `createAudioManager()` so service remains responsible for UI notification policy.
 3. Keep raw echo warning policy in `service.ts` because it depends on provider runtime preferences, not local process mechanics.
-4. Replace `audioCaptures`, `audioPlaybacks`, `handleMicrophoneError()`, `handleAudioPlaybackError()`, and `handleProviderAudio()` in `service.ts` with calls into `localMedia`.
+4. Replace `audioCaptures`, `audioPlaybacks`, `handleMicrophoneError()`, `handleAudioPlaybackError()`, and `handleProviderAudio()` in `service.ts` with calls into the audio manager.
 5. Preserve exact command behavior and status text unless probes require deliberate updates.
 
 Acceptance:
 
 - `service.ts` no longer imports `createMacOSFfmpegAudioCapture`, `AudioCaptureController`, `createFfplayAudioPlayback`, or `AudioPlaybackController`.
-- `local-media.ts` is the only module that imports both `audio.ts` and `playback.ts`.
+- `audio-manager.ts` is the only module that imports both `audio.ts` and `playback.ts`.
 - `/realtime mic ...` and `/realtime audio ...` command behavior remains covered by existing probes.
 - `npm run gates:typecheck` and `npm run gates:validation` pass.
 
@@ -203,13 +212,13 @@ refactor: isolate local realtime media lifecycle
 
 Files:
 
-- create `.pi/extensions/pi-realtime/voice-tools.ts`
+- create `.pi/extensions/pi-realtime/tools.ts`
 - edit `.pi/extensions/pi-realtime/service.ts`
 - update validation probes that inspect tool routing strings
 
 Steps:
 
-1. Move these private helpers to `voice-tools.ts`:
+1. Move these private helpers to `tools.ts`:
    - `directToolResult()`
    - `sendInstructionFromTool()`
    - `resolveCitation()`
@@ -235,7 +244,7 @@ Steps:
 Acceptance:
 
 - `service.ts` no longer contains direct implementations of citation resolving, string argument parsing, or instruction payload construction.
-- `voice-tools.ts` contains direct voice tool behavior and no provider adapter/media process state.
+- `tools.ts` contains direct voice tool behavior and no provider adapter/audio resource state.
 - Existing fake provider/direct tool probes pass unchanged or with only path/assertion updates.
 - `npm run gates:typecheck` and `npm run gates:validation` pass.
 
@@ -262,7 +271,7 @@ Steps:
    - `service.ts` must not import local process constructors;
    - `providers/runtime.ts` must not import `./openai/webrtc*` or OpenAI credential/client-secret helpers;
    - root `providers/` must not contain `openai-*` filename sprawl;
-   - `voice-tools.ts` must contain the empty-instruction rejection path.
+   - `tools.ts` must contain the empty-instruction rejection path.
 4. Do not enforce arbitrary line-count gates, but use the current `service.ts` size as a review signal. Expected result after Phases 2-3 is materially smaller and easier to scan.
 
 Acceptance:
