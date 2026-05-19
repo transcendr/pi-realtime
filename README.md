@@ -52,7 +52,7 @@ pi install -l .
 
 - Pi `^0.74.0`.
 - Node.js compatible with the checked-in TypeScript/tooling stack.
-- `OPENAI_API_KEY` for OpenAI Realtime sessions.
+- `OPENAI_API_KEY` for OpenAI Realtime sessions, either exported in the shell or set in a local `.env` file.
 - `ffmpeg` and `ffplay` only when using raw microphone/audio commands.
 - A browser for the optional WebRTC helper flow.
 
@@ -96,10 +96,17 @@ It exercises transcript events, context packet delivery, voice-derived Pi instru
 
 ## OpenAI Realtime
 
-Set `OPENAI_API_KEY`, then start an OpenAI session:
+Set `OPENAI_API_KEY`, then start an OpenAI session. You can export it in the shell:
 
 ```bash
 export OPENAI_API_KEY=...
+```
+
+Or copy `.env.example` to `.env` and replace the placeholder:
+
+```bash
+cp .env.example .env
+$EDITOR .env
 ```
 
 ```text

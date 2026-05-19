@@ -7,6 +7,10 @@ const openai = readFileSync(".pi/extensions/pi-realtime/providers/openai/index.t
 const service = readFileSync(".pi/extensions/pi-realtime/service.ts", "utf8");
 const runtime = readFileSync(".pi/extensions/pi-realtime/providers/runtime.ts", "utf8");
 const openaiRuntime = readFileSync(".pi/extensions/pi-realtime/providers/openai/runtime.ts", "utf8");
+const openaiShared = readFileSync(".pi/extensions/pi-realtime/providers/openai/shared.ts", "utf8");
+const envSource = readFileSync(".pi/extensions/pi-realtime/env.ts", "utf8");
+const gitignore = readFileSync(".gitignore", "utf8");
+const envExample = readFileSync(".env.example", "utf8");
 const pkg = JSON.parse(readFileSync("package.json", "utf8"));
 
 assert.match(openai, /OpenAIRealtimeWebSocket/);
@@ -31,6 +35,11 @@ assert.match(openai, /requestResponse/);
 assert.match(openaiRuntime, /hasOpenAIRealtimeCredentials\(\)/);
 assert.match(openaiRuntime, /createOpenAIRealtimeProvider/);
 assert.match(openaiRuntime, /defaultModel\(\) \{ return "gpt-realtime-mini"; \}/);
+assert.match(openaiShared, /loadProjectEnv\(env\)/);
+assert.match(envSource, /resolve\(cwd, "\.env"\)/);
+assert.match(envSource, /if \(env\[key\] === undefined\) env\[key\] = value/);
+assert.match(gitignore, /^\.env$/m);
+assert.match(envExample, /OPENAI_API_KEY=replace-me/);
 assert.doesNotMatch(runtime, /hasOpenAIRealtimeCredentials\(\)|createOpenAIRealtimeProvider/);
 assert.doesNotMatch(service, /hasOpenAIRealtimeCredentials\(\)/);
 assert.doesNotMatch(service, /createOpenAIRealtimeProvider/);
