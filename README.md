@@ -1,36 +1,151 @@
 # pi-realtime
 
-Pi extension project for realtime voice control-plane interfaces to Pi agents.
+Realtime voice sessions for [Pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent).
 
-The extension is being built around a provider-neutral core: realtime voice providers such as OpenAI Realtime and Google Gemini Live should adapt to one shared Pi control-plane model instead of embedding Pi logic in provider-specific code. The current implementation includes the provider-neutral foundation, a fake/no-network provider for deterministic development, and an OpenAI Realtime prototype with text, raw microphone/audio paths, and an opt-in browser/WebRTC helper for speaker-safe media.
+`pi-realtime` adds a Pi-native realtime voice control plane: start a voice session, speak to Pi, receive spoken acknowledgements/progress/final answers, and keep provider-specific media behavior isolated behind a shared extension model.
 
-## Project layout
+> Preview release: `pi-realtime` is usable for local preview testing, but provider behavior, command names, and install ergonomics may change before `1.0.0`.
+
+## What’s new
+
+`0.1.0` is the first preview release.
+
+It includes a provider-neutral realtime session core, deterministic fake-provider testing, OpenAI Realtime support, browser/WebRTC media helper support, usage telemetry, and Pi-facing realtime send tools for acknowledgements, progress updates, and final responses.
+
+See the [changelog](CHANGELOG.md) for details.
+
+## Features
+
+- `/realtime` command for starting, inspecting, and stopping realtime voice sessions.
+- Provider-neutral session model for fake, OpenAI, and future realtime providers.
+- Deterministic fake provider for local development without API keys, microphones, speakers, or network calls.
+- OpenAI Realtime adapter for text, tool calls, raw microphone input, raw audio playback, and response usage telemetry.
+- Optional localhost browser/WebRTC helper for speaker-safe media with browser echo cancellation, noise suppression, and automatic gain control.
+- Pi-to-realtime communication tools for spoken acknowledgements, progress updates, final answers, and active-session status checks.
+- Durable branch-aware replay of realtime session observations, context packets, tool calls, citation decks, and usage observations.
+- Compact status/widget rendering for active realtime sessions.
+- Provider-scoped tool result routing so concurrent sessions do not receive each other’s responses.
+
+## Install
+
+Install globally for your Pi environment:
+
+```bash
+pi install npm:pi-realtime
+```
+
+Install project-locally:
+
+```bash
+pi install -l npm:pi-realtime
+```
+
+For local development from this checkout:
+
+```bash
+npm install
+npm run gates:quality
+pi install -l .
+```
+
+## Requirements
+
+- Pi `^0.74.0`.
+- Node.js compatible with the checked-in TypeScript/tooling stack.
+- `OPENAI_API_KEY` for OpenAI Realtime sessions.
+- `ffmpeg` and `ffplay` only when using raw microphone/audio commands.
+- A browser for the optional WebRTC helper flow.
+
+## `/realtime` command
+
+Use `/realtime` to manage realtime sessions from Pi.
 
 ```text
-.pi/extensions/pi-realtime/
-  index.ts                 # Pi extension entrypoint
-  runtime.ts               # Pi lifecycle/command/UI wiring
-  commands.ts              # /realtime parser
-  audio.ts                 # ffmpeg/AVFoundation microphone capture
-  playback.ts              # ffplay PCM response playback
-  media/webrtc-helper/     # localhost browser/WebRTC helper for AEC media
-  control-plane.ts         # Pi instruction sink and citation observation bridge
-  events.ts                # durable event constructors/replay helpers
-  store.ts                 # branch-aware session custom-entry replay
-  service.ts               # provider-neutral orchestration
-  state-packets.ts         # compact Pi/citation/tool context packets
-  prompt.ts                # voice-agent policy/tool-surface prompt
-  types.ts                 # versioned event/state/provider packet types
-  view.ts                  # status/widget rendering
-  providers/
-    types.ts               # normalized provider adapter contract
-    fake.ts                # deterministic no-network provider adapter
-    openai.ts              # OpenAI Realtime WebSocket adapter
-    openai-webrtc*.ts      # OpenAI WebRTC helper auth/bridge adapters
-  .sentrux/rules.toml      # structural constraints
-.ai/validation/
-  pi-realtime-*.mjs        # deterministic probes
+/realtime status
+/realtime start --provider fake
+/realtime start --provider openai
+/realtime text <message>
+/realtime usage [--session <providerSessionId>] [--details]
+/realtime stop [--session <providerSessionId>]
 ```
+
+Common commands:
+
+- `/realtime status` — show active sessions and current primary session.
+- `/realtime start --provider fake` — start the deterministic local fake provider.
+- `/realtime start --provider openai` — start an OpenAI Realtime session using `OPENAI_API_KEY`.
+- `/realtime text <message>` — send text to the current primary realtime session.
+- `/realtime usage --details` — inspect tracked usage observations.
+- `/realtime primary <providerSessionId>` — choose the primary realtime session.
+- `/realtime stop [--session <providerSessionId>]` — stop one session, or the primary session when no session id is provided.
+- `/realtime citations` — show the currently observed citation deck summary.
+- `/realtime help` — show command help.
+
+## Fake provider
+
+The fake provider is the safest way to validate Pi integration without provider credentials or media devices.
+
+```text
+/realtime start --provider fake
+/realtime fake transcript <text>
+/realtime fake tool request {"request":"summarize the current repo"}
+/realtime stop
+```
+
+It exercises transcript events, context packet delivery, voice-derived Pi instruction submission, provider-scoped tool result routing, citation lookup shape, and shutdown cleanup.
+
+## OpenAI Realtime
+
+Set `OPENAI_API_KEY`, then start an OpenAI session:
+
+```bash
+export OPENAI_API_KEY=...
+```
+
+```text
+/realtime start --provider openai
+/realtime openai text hello
+/realtime usage --details
+```
+
+Raw microphone and playback commands are available for local smoke tests:
+
+```text
+/realtime openai mic start
+/realtime openai audio start
+/realtime openai mic stop
+/realtime openai audio stop
+```
+
+Raw local microphone plus speaker playback does not provide acoustic echo cancellation. Use headphones, or prefer the WebRTC helper for speaker-safe testing.
+
+## WebRTC helper
+
+The WebRTC helper opens a localhost browser page that owns microphone and speaker media so the browser can apply echo cancellation, noise suppression, and automatic gain control.
+
+```text
+/realtime openai webrtc start
+/realtime openai webrtc status
+/realtime openai webrtc stop
+```
+
+You can also enable or disable OpenAI auto WebRTC preference:
+
+```text
+/realtime webrtc on
+/realtime webrtc off
+```
+
+## Agent-facing realtime tools
+
+When a realtime session is active, Pi agents can communicate back to the voice interface through explicit tools:
+
+- `realtime_status` — check whether a live realtime send target exists.
+- `realtime_send_ack` — send a short spoken acknowledgement before work is done.
+- `realtime_send_status` — send concise progress or checkpoint updates during work.
+- `realtime_send_text` — send summaries, reports, final answers, or other text responses.
+
+These tools are intended to make realtime voice feel like one coherent assistant while keeping Pi responsible for backend work and evidence gathering.
 
 ## Development
 
@@ -51,50 +166,24 @@ npm run scans:deslop
 
 `gates:*` scripts are blocking. `scans:*` scripts are advisory sensors; findings are leads for semantic review, not automatic failures.
 
-## Pi loading
-
-```bash
-pi install -l /Users/bryan/dev/personal/experiments/pi-realtime
-pi --offline --no-session --no-tools -e .pi/extensions/pi-realtime/index.ts --list-models
-```
-
-## Current commands
+## Project layout
 
 ```text
-/realtime status
-/realtime start --provider fake
-/realtime start --provider openai --model gpt-realtime-mini   # requires OPENAI_API_KEY
-/realtime text <message>
-/realtime openai text <message>
-/realtime openai mic start
-/realtime openai mic stop
-/realtime openai audio start
-/realtime openai audio stop
-/realtime openai webrtc start
-/realtime openai webrtc stop
-/realtime openai webrtc status
-/realtime mic status
-/realtime audio status
-/realtime fake transcript <text>
-/realtime fake tool <tool_name> <json>
-/realtime citations
-/realtime usage [--session <providerSessionId>] [--details]
-/realtime primary <providerSessionId>
-/realtime stop [--session <providerSessionId>]
+.pi/extensions/pi-realtime/
+  index.ts                 # Pi extension entrypoint
+  runtime.ts               # Pi lifecycle/command/UI wiring
+  commands.ts              # /realtime parser
+  service.ts               # provider-neutral orchestration
+  store.ts                 # branch-aware session custom-entry replay
+  events.ts                # durable event constructors/replay helpers
+  control-plane.ts         # Pi instruction sink and citation observation bridge
+  realtime-updates.ts      # Pi-to-realtime spoken update delivery
+  prompt.ts                # voice-agent policy/tool-surface prompt
+  state-packets.ts         # compact Pi/citation/tool context packets
+  usage.ts                 # usage observation and formatting helpers
+  view.ts                  # status/widget rendering
+  providers/               # provider adapter contracts and implementations
+  media/webrtc-helper/     # localhost browser/WebRTC helper
+.ai/validation/
+  pi-realtime-*.mjs        # deterministic probes
 ```
-
-The fake provider exercises transcript events, context packet delivery, direct voice tool calls, Pinotator citation lookup shape, voice-derived Pi instruction submission, provider-scoped tool result routing, and shutdown cleanup without API keys, microphone access, or network.
-
-The OpenAI adapter currently covers text/context/tool-call, raw microphone input, raw audio playback, opt-in WebRTC helper media, and usage telemetry. It is guarded by `OPENAI_API_KEY`; use `/realtime openai text <message>` for text smoke tests. Raw `/realtime openai mic start` plus `/realtime openai audio start` uses `ffmpeg`/`ffplay` and does not provide local acoustic echo cancellation, so use headphones. For speaker-safe testing, use `/realtime openai webrtc start` to open the localhost browser helper with WebRTC echo cancellation/noise suppression/AGC. Visible transcript notifications remain enabled.
-
-Use `/realtime usage --details` during live tests to inspect durable usage observations from `response.done.response.usage` and input transcription usage events. Local cost estimates use checked-in pricing constants for conversational response usage; separately billed transcription usage is tracked but excluded when its model-specific rate is unknown. The OpenAI dashboard remains authoritative.
-
-## Planning docs
-
-- `.ai/docs/realtime-voice/initial-brief.md`
-- `.ai/docs/realtime-voice/architecture.md`
-- `.ai/docs/realtime-voice/input-injection-decision.md`
-- `.ai/docs/realtime-voice/webrtc-helper-goal-plan.md`
-- `.ai/docs/realtime-voice/usage-instrumentation-goal-plan.md`
-
-Future provider work should keep vendor SDK imports isolated under provider-owned directories such as `providers/openai/` and `providers/gemini/`; avoid repeated provider-prefixed filenames in the shared provider root.

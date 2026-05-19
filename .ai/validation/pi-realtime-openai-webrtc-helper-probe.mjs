@@ -18,7 +18,7 @@ const protocol = readFileSync(".pi/extensions/pi-realtime/media/webrtc-helper/pr
 const html = readFileSync(".pi/extensions/pi-realtime/media/webrtc-helper/client.html", "utf8");
 const client = readFileSync(".pi/extensions/pi-realtime/media/webrtc-helper/client.js", "utf8");
 const debugTrace = readFileSync(".pi/extensions/pi-realtime/debug-trace.ts", "utf8");
-const docs = readFileSync(".ai/docs/realtime-voice/openai-smoke-test.md", "utf8");
+const readme = readFileSync("README.md", "utf8");
 const pkg = readFileSync("package.json", "utf8");
 
 assert.match(commands, /webrtc on\|off/);
@@ -106,7 +106,7 @@ assert.doesNotMatch(client, /beta_api_shape/);
 assert.doesNotMatch(client, /OPENAI_API_KEY/);
 assert.doesNotMatch(html, /OPENAI_API_KEY/);
 
-assert.match(docs, /WebRTC helper speaker-safe smoke/);
-assert.match(docs, /browser page must not receive `OPENAI_API_KEY`/);
+assert.match(readme, /WebRTC helper/);
+assert.match(readme, /browser can apply echo cancellation/);
 assert.match(pkg, /\.pi\/extensions\/pi-realtime\/\*\*/);
 console.log("PASS pi-realtime OpenAI WebRTC helper probe");
