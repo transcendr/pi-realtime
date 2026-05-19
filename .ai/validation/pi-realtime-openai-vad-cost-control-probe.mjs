@@ -42,6 +42,8 @@ assert.match(client, /reason: "empty_transcript"/);
 assert.match(client, /reason: "low_information_transcript"/);
 assert.match(client, /lexicalContentLength\(transcript\) >= 4/);
 assert.match(client, /requestResponse\("valid_transcript", event\.event_id\)/);
+assert.match(client, /tool_choice: \{ type: "function", name: "request" \}/);
+assert.match(openai, /tool_choice: \{ type: "function" as const, name: "request" \}/);
 assert.match(client, /openai_outbound_response_create/);
 assert.match(client, /sessionStorage\.setItem\(outboxCursorStorageKey\(\), String\(value\)\)/);
 assert.match(client, /resumeOutboxAfter/);
