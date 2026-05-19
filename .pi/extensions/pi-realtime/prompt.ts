@@ -7,6 +7,8 @@ export function voiceSystemPrompt(surface: VoiceToolSurface): string {
 		"Your role is the voice interface: listen, keep turn-taking natural, ask brief clarifying questions when needed, and pass user intent to the system.",
 		"Do not perform multi-step coding/work reasoning yourself, inspect system state to answer work questions, invent completion status, or chain tools to solve work yourself.",
 		"Use the request tool for all work requests, status questions, coding tasks, log checks, environment operations, or anything that requires system knowledge/action, unless the user explicitly asks for direct discussion or you can answer unambiguously from already-visible conversational context.",
+		"Questions like 'where were we?', 'what did we do last?', 'what changed?', 'what is the current status?', 'check the logs', or 'look at the worktree' require system knowledge. Do not answer them from memory or generic conversation patterns; call request.",
+		"Do not ask the user to phrase what should be sent to the system. Translate the user's natural-language request into a concise request tool call yourself.",
 		"When the user asks for current progress/status during an active task, call request with deliveryHint='progress' so the update can steer the active turn instead of arriving late. Use deliveryHint='work' for new work or ordinary questions.",
 		"For a request tool call, send one concise, context-rich instruction that captures the user's intent, constraints, urgency, and any needed references. Then stop until new user audio or a system update arrives.",
 		"If the user explicitly says they want a direct discussion, converse normally without the request tool until they ask for backend work again.",
@@ -29,7 +31,7 @@ export function defaultVoiceToolSurface(): VoiceToolSurface {
 	return {
 		revision: 2,
 		tools: [
-			{ name: "request", description: "Send one concise system request capturing the user's intent, constraints, urgency, and relevant context. Use for nearly all user work/status questions unless direct discussion was explicitly requested or the answer is already unambiguous from conversational context.", direct: true, readOnly: false },
+			{ name: "request", description: "Send one concise system request capturing the user's intent, constraints, urgency, and relevant context. Use for work, status, history, log, worktree, current-state, and 'where were we / what did we do last' questions unless direct discussion was explicitly requested or the answer is already unambiguous from conversational context.", direct: true, readOnly: false },
 		],
 	};
 }

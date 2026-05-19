@@ -80,6 +80,8 @@ assert.match(fake, /request_spoken_response/);
 assert.match(prompt, /voice interface/);
 assert.match(prompt, /Do not perform multi-step coding\/work reasoning yourself/);
 assert.match(prompt, /Use the request tool for all work requests/);
+assert.match(prompt, /where were we/);
+assert.match(prompt, /Do not answer them from memory/);
 assert.match(prompt, /deliveryHint='progress'/);
 assert.match(prompt, /Never describe internal routing/);
 assert.match(prompt, /backend_update kind=ack/);
