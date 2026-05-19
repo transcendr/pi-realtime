@@ -69,13 +69,16 @@ class RealtimeService implements Service {
 	toolSurface(): VoiceToolSurface { return this.surface; }
 	statusText(): string { return renderStatusText(this.store.state()); }
 	realtimeStatusText(providerSessionId?: ProviderSessionId): string {
+		const state = this.store.state();
+		const activeCount = [...state.sessions.values()].filter((session) => session.status === "active" || session.status === "starting").length;
 		const target = providerSessionId ?? this.defaultRealtimePushTarget();
 		const live = target ? this.adapters.has(target) : false;
 		return [
-			renderStatusText(this.store.state()),
+			renderStatusText(state),
+			activeCount === 0 ? "Realtime is not currently active: 0 active provider sessions means do not use realtime_send_* tools." : `Realtime active session count: ${activeCount}`,
 			`realtime_send target: ${target ?? "none"}`,
 			`target live: ${live ? "yes" : "no"}`,
-			live ? "Pi can use realtime_send_ack, realtime_send_status, or realtime_send_text for this target." : "No live realtime send target is available; continue normally in Pi and do not retry realtime_send_* tools.",
+			live ? "Pi can use realtime_send_ack, realtime_send_status, or realtime_send_text for this target." : "No live realtime send target is available; continue normally in Pi and do not retry realtime_send_* tools until a new realtime active-session context message or realtime_status reports target live: yes.",
 		].join("\n");
 	}
 	defaultModelFor(provider: ProviderKind): string { return this.requireProviderRuntime(provider).defaultModel(); }
@@ -93,9 +96,9 @@ class RealtimeService implements Service {
 		const text = input.text.trim();
 		if (!text) throw new Error("realtime_send_* requires non-empty text.");
 		const providerSessionId = input.providerSessionId ?? this.defaultRealtimePushTarget();
-		if (!providerSessionId) return "No active realtime session is available; the realtime update was not sent.";
+		if (!providerSessionId) return "No active realtime session is available; the realtime update was not sent. Realtime is not currently active, so do not retry realtime_send_* tools until a new realtime active-session context message arrives or realtime_status reports target live: yes.";
 		const adapter = this.adapters.get(providerSessionId);
-		if (!adapter) return `Realtime session ${providerSessionId} is not currently live; the realtime update was not sent.`;
+		if (!adapter) return `Realtime session ${providerSessionId} is not currently live; the realtime update was not sent. Do not retry realtime_send_* tools for this target until a new realtime active-session context message arrives or realtime_status reports target live: yes.`;
 		const receipt = await adapter.pushContext({ text, mode: input.mode, source: input.source, kind: input.kind, summary: input.summary });
 		this.debugTraces.recorderFor(providerSessionId)?.write({ source: "service", direction: "pi_realtime_context_push", providerSessionId, mode: input.mode, updateKind: input.kind, pushSource: input.source, summary: input.summary, textLength: text.length, responseRequested: input.mode === "request_spoken_response", receiptStatus: receipt.status });
 		return `${receipt.message ?? "Realtime context push accepted"} (${providerSessionId}).`;

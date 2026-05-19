@@ -1,6 +1,6 @@
 {
   "packages": [
-    "../../pinotator",
-    "../../pi-goals"
+    "../../pi-goals",
+    "../../pinotator"
   ]
 }
