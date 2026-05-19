@@ -79,11 +79,13 @@ assert.match(fake, /request_spoken_response/);
 
 assert.match(prompt, /voice interface/);
 assert.match(prompt, /Do not perform multi-step coding\/work reasoning yourself/);
+assert.match(prompt, /default action for user audio is to call request/);
 assert.match(prompt, /Use the request tool for all work requests/);
 assert.match(prompt, /where were we/);
+assert.match(prompt, /Do not answer them yourself/);
 assert.match(prompt, /project design\/configuration discussions/);
 assert.match(prompt, /send it/);
-assert.match(prompt, /Do not answer them from memory/);
+assert.match(prompt, /Do not answer user questions directly/);
 assert.match(prompt, /deliveryHint='progress'/);
 assert.match(prompt, /Never describe internal routing/);
 assert.match(prompt, /backend_update kind=ack/);
