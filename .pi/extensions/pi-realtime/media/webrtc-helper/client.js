@@ -153,10 +153,7 @@ function lexicalContentLength(transcript) {
 }
 
 function requestResponse(reason, providerEventId) {
-	const response = reason === "valid_transcript"
-		? { output_modalities: ["audio"], tool_choice: { type: "function", name: "request" } }
-		: { output_modalities: ["audio"] };
-	sendRealtime({ type: "response.create", response }, { label: "openai_outbound_response_create", reason, providerEventId });
+	sendRealtime({ type: "response.create", response: { output_modalities: ["audio"] } }, { label: "openai_outbound_response_create", reason, providerEventId });
 }
 
 function sendRealtime(event, traceOptions = {}) {

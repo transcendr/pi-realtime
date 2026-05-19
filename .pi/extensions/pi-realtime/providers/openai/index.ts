@@ -90,10 +90,7 @@ export class OpenAIRealtimeProviderAdapter implements RealtimeProviderAdapter {
 	}
 
 	async requestResponse(request: VoiceResponseRequest): Promise<void> {
-		const response = request.reason === "valid_transcript"
-			? { output_modalities: [this.audioOutputEnabled ? "audio" : "text"], instructions: request.instructions, tool_choice: { type: "function" as const, name: "request" } }
-			: { output_modalities: [this.audioOutputEnabled ? "audio" : "text"], instructions: request.instructions };
-		this.send({ type: "response.create", response } as RealtimeClientEvent);
+		this.send({ type: "response.create", response: { output_modalities: [this.audioOutputEnabled ? "audio" : "text"], instructions: request.instructions } } as RealtimeClientEvent);
 	}
 
 	private sendSessionUpdate(): void {
