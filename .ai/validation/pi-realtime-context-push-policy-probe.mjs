@@ -54,6 +54,8 @@ assert.match(providerTypes, /pushContext\(input: RealtimeContextPushRequest\)/);
 
 assert.match(service, /pushRealtimeContext/);
 assert.match(service, /No active realtime session is available/);
+assert.match(service, /0 active provider sessions means do not use realtime_send_\*/);
+assert.match(service, /do not retry realtime_send_\* tools until a new realtime active-session context message/);
 assert.match(service, /pi_realtime_context_push/);
 assert.match(service, /responsePolicyForTool/);
 assert.match(service, /return "none"/);
