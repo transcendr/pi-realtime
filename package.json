@@ -1,7 +1,7 @@
 {
   "name": "pi-realtime",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "description": "Pi extension for pi-realtime.",
   "main": ".pi/extensions/pi-realtime/index.ts",
   "type": "commonjs",
