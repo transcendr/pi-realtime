@@ -38,7 +38,7 @@ assert.match(events, /event\.observation\.providerSessionId/);
 assert.match(service, /usageObserved\(event\.observation\)/);
 assert.match(service, /usageText/);
 assert.match(service, /resetUsage/);
-assert.match(commands, /cmd === "usage"/);
+assert.match(commands, /usage,/);
 assert.match(commands, /usage --details/);
 assert.match(commands, /usage reset/);
 assert.match(commands, /service\.usageText/);
