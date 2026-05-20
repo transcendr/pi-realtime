@@ -838,6 +838,8 @@ Deviations or trade-offs:
 
 - No implementation deviation. The only operational adjustment is force-staging this ignored design doc because the user explicitly made it the active ledger and commit artifact.
 
+> RESPONSE: The only operational adjustment is force-staging this ignored design doc because the user explicitly made it the active ledger and commit artifact.
+
 Remaining risks or concerns:
 
 - None for Phase 0. Later phases still require code implementation, phase gates, full quality, and live OpenAI/WebRTC proof for queueing and barge-in semantics.
@@ -981,5 +983,48 @@ Review:
 
 - The chunking module is pure domain logic with no provider, Pi, browser, or service dependencies.
 - The implementation keeps exact text preservation and max-length enforcement as explicit invariants.
+
+CLEAN IMPLEMENTATION.
+
+### Phase D — service chunk fan-out
+
+Interrogate:
+
+1. Where should chunking be applied? In service `pushRealtimeContext` after resolving the live target session and provider runtime, because service owns provider-neutral orchestration and has access to the persisted session model.
+2. Which updates are eligible? Only `mode === "request_spoken_response"` and `kind === "text"` when the resolved behavior profile enables chunking.
+3. How should provider adapters receive chunked updates? As ordinary `pushContext` calls with per-chunk `text` plus optional non-speakable `chunk` metadata.
+4. How should partial failure behave? Successful chunks are traced; a provider `failed` receipt throws a message that includes failed chunk index and total count; earlier chunks are not replayed.
+5. How can this be validated before live OpenAI tests? Deterministic validation asserts the service resolves behavior profiles, chunks in a loop, forwards chunk metadata, traces chunk fields, avoids service-level model branches, and that fake provider records pushed contexts in order.
+
+Progress notes and unexpected outcomes:
+
+- Added `RealtimeContextPushChunk` and optional `chunk` metadata to provider push requests.
+- Updated `pushRealtimeContext` to resolve session profile and fan out eligible text backend updates in chunk order.
+- Added focused helpers: `shouldChunkPush`, `speechChunksForPush`, `chunkRequest`, and `renderChunkedPushResult`.
+- Added per-chunk service trace fields: chunk index/count, original length, text length, and receipt status.
+- Extended context-push validation for chunk fan-out contracts and fake-provider recording.
+- No typecheck or validation failures occurred after the service integration.
+
+Deviations or trade-offs:
+
+- The Phase D validation verifies service fan-out by source contract plus existing fake-provider pushed-context storage rather than instantiating private service internals. This follows the repo's existing deterministic probe style and avoids adding test-only runtime seams.
+- Single-chunk updates omit `chunk` metadata to preserve existing provider payload behavior as much as possible.
+
+Remaining risks or concerns:
+
+- Actual OpenAI/WebRTC burst queueing and barge-in behavior remain live-semantics questions for Phase G.
+- If provider `pushContext` throws rather than returning a failed receipt, the thrown provider error is propagated without an additional failed-chunk trace for that chunk; successes before the failure are still traced.
+
+Validation:
+
+- `npm run gates:typecheck` passed.
+- `npm run gates:validation` passed.
+- Targeted review found no TypeScript escape hatches or TODO/FIXME markers in the touched service/provider contracts.
+
+Review:
+
+- Service consumes provider-neutral behavior profiles and does not branch on OpenAI model names.
+- Provider adapters remain responsible only for translating each push request into provider payloads.
+- Chunk metadata is added to the provider-neutral request contract but is not yet used as speakable content.
 
 CLEAN IMPLEMENTATION.

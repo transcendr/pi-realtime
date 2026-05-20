@@ -25,12 +25,19 @@ export type VoiceResponseRequest = {
 
 export type ToolResultResponsePolicy = "none" | "continue" | "final_ack";
 
+export type RealtimeContextPushChunk = {
+	index: number;
+	count: number;
+	originalTextLength: number;
+};
+
 export type RealtimeContextPushRequest = {
 	text: string;
 	mode: RealtimePushMode;
 	source: RealtimePushSource;
 	kind: RealtimeUpdateKind;
 	summary?: string;
+	chunk?: RealtimeContextPushChunk;
 };
 
 export type ProviderEventSink = {

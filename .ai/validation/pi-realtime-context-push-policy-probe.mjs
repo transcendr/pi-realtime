@@ -43,6 +43,8 @@ assert.match(types, /RealtimePushMode = "context_only" \| "request_spoken_respon
 assert.match(types, /deliveryHint\?: "work" \| "progress"/);
 assert.match(types, /RealtimeUpdateKind = "ack" \| "status" \| "text"/);
 assert.match(types, /RealtimeContextPushInput/);
+assert.match(providerTypes, /RealtimeContextPushChunk/);
+assert.match(providerTypes, /chunk\?: RealtimeContextPushChunk/);
 assert.match(providerTypes, /RealtimeContextPushRequest/);
 assert.match(updates, /<backend_update kind=/);
 assert.match(updates, /<speak_this_verbatim>/);
@@ -58,6 +60,19 @@ assert.match(providerTypes, /ToolResultResponsePolicy = "none" \| "continue" \| 
 assert.match(providerTypes, /pushContext\(input: RealtimeContextPushRequest\)/);
 
 assert.match(service, /pushRealtimeContext/);
+assert.match(service, /resolveRealtimeBehaviorProfile/);
+assert.match(service, /chunkBackendUpdateSpeech/);
+assert.match(service, /function shouldChunkPush/);
+assert.match(service, /function speechChunksForPush/);
+assert.match(service, /function chunkRequest/);
+assert.match(service, /function renderChunkedPushResult/);
+assert.match(service, /for \(const chunk of chunks\)/);
+assert.match(service, /adapter\.pushContext\(request\)/);
+assert.match(service, /chunkIndex: request\.chunk\?\.index/);
+assert.match(service, /chunkCount: request\.chunk\?\.count/);
+assert.match(service, /originalTextLength: request\.chunk\?\.originalTextLength/);
+assert.match(service, /Realtime context push failed for chunk/);
+assert.doesNotMatch(service, /model === "gpt-realtime-mini"/);
 assert.match(service, /No active realtime session is available/);
 assert.match(service, /0 active provider sessions means do not use realtime_send_\*/);
 assert.match(service, /do not retry realtime_send_\* tools until a new realtime active-session context message/);
@@ -85,6 +100,7 @@ assert.match(raw, /backendUpdateItemEvent/);
 assert.match(responses, /reason: "pi_context_push"/);
 assert.match(raw, /policy === "none"/);
 assert.match(fake, /pushedContexts/);
+assert.match(fake, /this\.pushedContexts\.push\(input\)/);
 assert.match(fake, /request_spoken_response/);
 
 assert.match(prompt, /voice interface/);
