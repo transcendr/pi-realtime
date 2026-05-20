@@ -7,6 +7,38 @@ export const DEFAULT_BEHAVIOR_PROFILE: RealtimeBehaviorProfile = {
 			maxChars: 800,
 			splitStrategy: "sentence",
 		},
+		rendering: {
+			systemPromptMode: "strict_verbatim",
+			envelope: "speak_this_verbatim",
+			defaultMode: "verbatim",
+		},
+	},
+};
+
+export const WEAK_REALTIME_SPEECH_RENDERER_PROFILE: RealtimeBehaviorProfileFragment = {
+	backendUpdateSpeech: {
+		chunking: {
+			enabled: true,
+			maxChars: 800,
+			splitStrategy: "sentence",
+		},
+		rendering: {
+			systemPromptMode: "strict_verbatim",
+			envelope: "speak_this_verbatim",
+			defaultMode: "verbatim",
+		},
+	},
+};
+
+export const STRONG_REALTIME_SPEECH_RENDERER_PROFILE: RealtimeBehaviorProfileFragment = {
+	backendUpdateSpeech: {
+		rendering: {
+			systemPromptMode: "per_response_rendering",
+			envelope: "speech_source",
+			defaultMode: "verbatim",
+			longTextThresholdChars: 300,
+			longTextMode: "compact_summary",
+		},
 	},
 };
 
@@ -14,12 +46,16 @@ export function resolveRealtimeBehaviorProfile(input: {
 	providerProfile?: RealtimeBehaviorProfileFragment;
 	interactionMode: RealtimeInteractionModeId;
 }): RealtimeBehaviorProfile {
-	const chunking = input.providerProfile?.backendUpdateSpeech?.chunking;
+	const speech = input.providerProfile?.backendUpdateSpeech;
 	return {
 		backendUpdateSpeech: {
 			chunking: {
 				...DEFAULT_BEHAVIOR_PROFILE.backendUpdateSpeech.chunking,
-				...chunking,
+				...speech?.chunking,
+			},
+			rendering: {
+				...DEFAULT_BEHAVIOR_PROFILE.backendUpdateSpeech.rendering,
+				...speech?.rendering,
 			},
 		},
 	};

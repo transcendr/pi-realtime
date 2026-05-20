@@ -1,11 +1,13 @@
 import { resolveRealtimeBehaviorProfile } from "./behavior-profiles";
-import type { BackendUpdateSpeechChunkingPolicy, RealtimeBehaviorProfileFragment, RealtimeContextPushInput, RealtimeInteractionModeId } from "../types";
+import type { BackendUpdateSpeechChunkingPolicy, BackendUpdateSpeechEnvelope, BackendUpdateSpeechRenderingMode, RealtimeBehaviorProfileFragment, RealtimeContextPushInput, RealtimeInteractionModeId } from "../types";
 
 export type SpeechChunk = {
 	text: string;
 	index: number;
 	count: number;
 	originalTextLength: number;
+	renderingMode: BackendUpdateSpeechRenderingMode;
+	envelope: BackendUpdateSpeechEnvelope;
 };
 
 const COMMON_ABBREVIATIONS = new Set(["e.g.", "i.e.", "vs.", "approx."]);
@@ -16,9 +18,9 @@ export function chunkBackendUpdateSpeech(input: {
 }): SpeechChunk[] {
 	const text = input.text.trim();
 	const maxChars = Math.max(1, input.policy.maxChars);
-	if (!input.policy.enabled || text.length <= maxChars) return buildChunks([text], text.length);
+	if (!input.policy.enabled || text.length <= maxChars) return buildChunks([text], text.length, "verbatim", "speak_this_verbatim");
 	const units = speechUnitsFor(text, maxChars).flatMap((unit) => splitOverlongUnit(unit, maxChars));
-	return buildChunks(packUnits(units, maxChars), text.length);
+	return buildChunks(packUnits(units, maxChars), text.length, "verbatim", "speak_this_verbatim");
 }
 
 export function chunkRealtimePushSpeech(input: {
@@ -28,11 +30,12 @@ export function chunkRealtimePushSpeech(input: {
 	interactionMode: RealtimeInteractionModeId;
 }): SpeechChunk[] {
 	const profile = resolveRealtimeBehaviorProfile({ providerProfile: input.providerProfile, interactionMode: input.interactionMode });
-	const chunking = profile.backendUpdateSpeech.chunking;
-	if (input.push.mode !== "request_spoken_response" || input.push.kind !== "text" || !chunking.enabled) {
-		return [{ text: input.text, index: 1, count: 1, originalTextLength: input.text.length }];
+	const speech = profile.backendUpdateSpeech;
+	const renderingMode = renderingModeFor(input.text, speech.rendering.defaultMode, speech.rendering.longTextThresholdChars, speech.rendering.longTextMode);
+	if (input.push.mode !== "request_spoken_response" || input.push.kind !== "text" || !speech.chunking.enabled) {
+		return [{ text: input.text, index: 1, count: 1, originalTextLength: input.text.length, renderingMode, envelope: speech.rendering.envelope }];
 	}
-	return chunkBackendUpdateSpeech({ text: input.text, policy: chunking });
+	return chunkBackendUpdateSpeech({ text: input.text, policy: speech.chunking }).map((chunk) => ({ ...chunk, renderingMode, envelope: speech.rendering.envelope }));
 }
 
 function speechUnitsFor(text: string, maxChars: number): string[] {
@@ -183,14 +186,21 @@ function packUnits(units: readonly string[], maxChars: number): string[] {
 	return chunks;
 }
 
-function buildChunks(texts: readonly string[], originalTextLength: number): SpeechChunk[] {
+function buildChunks(texts: readonly string[], originalTextLength: number, renderingMode: BackendUpdateSpeechRenderingMode, envelope: BackendUpdateSpeechEnvelope): SpeechChunk[] {
 	const filtered = texts.filter((text) => text.length > 0);
 	return filtered.map((text, index) => ({
 		text,
 		index: index + 1,
 		count: filtered.length,
 		originalTextLength,
+		renderingMode,
+		envelope,
 	}));
+}
+
+function renderingModeFor(text: string, defaultMode: BackendUpdateSpeechRenderingMode, threshold: number | undefined, longTextMode: BackendUpdateSpeechRenderingMode | undefined): BackendUpdateSpeechRenderingMode {
+	if (threshold === undefined || longTextMode === undefined) return defaultMode;
+	return text.length > threshold ? longTextMode : defaultMode;
 }
 
 function isDigit(value: string | undefined): boolean {

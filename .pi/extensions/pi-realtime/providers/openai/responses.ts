@@ -12,13 +12,13 @@ export function backendUpdateItemEvent(input: RealtimeContextPushRequest): Realt
 }
 
 export function backendUpdateResponseEvent(input: RealtimeContextPushRequest, interaction: ProviderInteractionConfig, outputModalities: Array<"audio" | "text">): RealtimeClientEvent {
-	if (interaction.backendSpeechContext !== "isolated_update") return responseCreateEvent({ reason: "pi_context_push", instructions: realtimeUpdateResponseInstructions(input.kind) }, outputModalities);
+	if (interaction.backendSpeechContext !== "isolated_update") return responseCreateEvent({ reason: "pi_context_push", instructions: realtimeUpdateResponseInstructions(input) }, outputModalities);
 	return {
 		type: "response.create",
 		response: {
 			conversation: "none",
 			output_modalities: outputModalities,
-			instructions: realtimeUpdateResponseInstructions(input.kind),
+			instructions: realtimeUpdateResponseInstructions(input),
 			input: [{ type: "message", role: "system", content: [{ type: "input_text", text: renderRealtimeUpdateEnvelope(input) }] }],
 			tools: [],
 			tool_choice: "none",

@@ -191,7 +191,8 @@ class RealtimeService implements Service {
 		if (!media) throw new Error(`${session.provider} does not support ${mediaMode} media.`);
 		const interaction = interactionMode(session.interactionMode);
 		const packets = this.buildPackets(ctx, providerSessionId, interaction.toolSurface);
-		return media.start({ session, ctx, surface: interaction.toolSurface, systemPrompt: interaction.systemPrompt(interaction.toolSurface), interaction: interaction.providerInteraction, sink: this.providerSink, packets, currentAdapter: this.adapters.get(providerSessionId), setAdapter: (adapter) => this.setAdapter(providerSessionId, adapter), stopLocalMedia: (id) => this.stopLocalMedia(id), recordContext: (packet, adapter) => this.recordContextPacket(providerSessionId, packet, adapter) });
+		const speechRendererMode = this.providers.get(session.provider)?.behaviorProfileForModel?.(session.model).backendUpdateSpeech?.rendering?.systemPromptMode;
+		return media.start({ session, ctx, surface: interaction.toolSurface, systemPrompt: interaction.systemPrompt(interaction.toolSurface, speechRendererMode), interaction: interaction.providerInteraction, sink: this.providerSink, packets, currentAdapter: this.adapters.get(providerSessionId), setAdapter: (adapter) => this.setAdapter(providerSessionId, adapter), stopLocalMedia: (id) => this.stopLocalMedia(id), recordContext: (packet, adapter) => this.recordContextPacket(providerSessionId, packet, adapter) });
 	}
 
 	async stopSessionMedia(providerSessionId?: ProviderSessionId): Promise<void> {
@@ -230,13 +231,14 @@ class RealtimeService implements Service {
 		if (input.primary ?? true) this.store.append(primaryChanged(providerSessionId));
 		const packets = this.buildPackets(ctx, providerSessionId, mode.toolSurface);
 		const adapter = runtime.createAdapter({ providerSessionId });
+		const speechRendererMode = runtime.behaviorProfileForModel?.(input.model).backendUpdateSpeech?.rendering?.systemPromptMode;
 		this.setAdapter(providerSessionId, adapter);
 		await adapter.connect({
 			providerSessionId,
 			provider: input.provider,
 			model: input.model,
 			personaId,
-			systemPrompt: mode.systemPrompt(mode.toolSurface),
+			systemPrompt: mode.systemPrompt(mode.toolSurface, speechRendererMode),
 			toolSurface: mode.toolSurface,
 			initialContext: packets[0],
 			capabilities: { preferPassiveContext: input.provider === "fake", preferSemanticVad: input.provider !== "fake" },
@@ -445,6 +447,7 @@ function chunkRequest(input: RealtimeContextPushInput, chunk: SpeechChunk): Real
 		kind: input.kind,
 		summary: input.summary,
 		chunk: chunk.count > 1 ? { index: chunk.index, count: chunk.count, originalTextLength: chunk.originalTextLength } : undefined,
+		rendering: { mode: chunk.renderingMode, envelope: chunk.envelope },
 	};
 }
 

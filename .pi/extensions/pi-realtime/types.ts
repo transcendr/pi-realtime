@@ -24,6 +24,9 @@ export type ToolChoicePolicy = "auto" | "none";
 export type BackendSpeechContext = "default_conversation" | "isolated_update";
 export type VoiceInstructionSource = "model_tool" | "direct_transcript" | "manual_text";
 export type SpeechChunkSplitStrategy = "sentence";
+export type BackendUpdateSpeechRenderingMode = "verbatim" | "compact_summary";
+export type BackendUpdateSpeechEnvelope = "speak_this_verbatim" | "speech_source";
+export type BackendUpdateSpeechRendererSystemPromptMode = "strict_verbatim" | "per_response_rendering";
 
 export type BackendUpdateSpeechChunkingPolicy = {
 	enabled: boolean;
@@ -31,8 +34,17 @@ export type BackendUpdateSpeechChunkingPolicy = {
 	splitStrategy: SpeechChunkSplitStrategy;
 };
 
+export type BackendUpdateSpeechRenderingPolicy = {
+	systemPromptMode: BackendUpdateSpeechRendererSystemPromptMode;
+	envelope: BackendUpdateSpeechEnvelope;
+	defaultMode: BackendUpdateSpeechRenderingMode;
+	longTextThresholdChars?: number;
+	longTextMode?: BackendUpdateSpeechRenderingMode;
+};
+
 export type BackendUpdateSpeechPolicy = {
 	chunking: BackendUpdateSpeechChunkingPolicy;
+	rendering: BackendUpdateSpeechRenderingPolicy;
 };
 
 export type RealtimeBehaviorProfile = {
@@ -42,6 +54,7 @@ export type RealtimeBehaviorProfile = {
 export type RealtimeBehaviorProfileFragment = {
 	backendUpdateSpeech?: {
 		chunking?: Partial<BackendUpdateSpeechChunkingPolicy>;
+		rendering?: Partial<BackendUpdateSpeechRenderingPolicy>;
 	};
 };
 
@@ -62,7 +75,7 @@ export type ProviderInteractionConfig = {
 export type RealtimeInteractionMode = {
 	id: RealtimeInteractionModeId;
 	toolSurface: VoiceToolSurface;
-	systemPrompt(surface: VoiceToolSurface): string;
+	systemPrompt(surface: VoiceToolSurface, speechRendererMode?: BackendUpdateSpeechRendererSystemPromptMode): string;
 	acceptModelToolCalls: boolean;
 	initialContextPolicy: "full" | "minimal";
 	providerInteraction: ProviderInteractionConfig;

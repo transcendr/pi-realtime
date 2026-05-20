@@ -1,4 +1,4 @@
-import type { ContextPacket, DisconnectReason, NormalizedProviderEvent, ProviderDeliveryReceipt, ProviderInteractionConfig, ProviderKind, ProviderSessionId, RealtimePushMode, RealtimePushSource, RealtimeUpdateKind, VoiceToolResultRecord, VoiceToolSurface } from "../types";
+import type { BackendUpdateSpeechEnvelope, BackendUpdateSpeechRenderingMode, ContextPacket, DisconnectReason, NormalizedProviderEvent, ProviderDeliveryReceipt, ProviderInteractionConfig, ProviderKind, ProviderSessionId, RealtimePushMode, RealtimePushSource, RealtimeUpdateKind, VoiceToolResultRecord, VoiceToolSurface } from "../types";
 
 export type ProviderCapabilityPreferences = {
 	preferPassiveContext: boolean;
@@ -31,6 +31,11 @@ export type RealtimeContextPushChunk = {
 	originalTextLength: number;
 };
 
+export type RealtimeContextPushRendering = {
+	mode: BackendUpdateSpeechRenderingMode;
+	envelope: BackendUpdateSpeechEnvelope;
+};
+
 export type RealtimeContextPushRequest = {
 	text: string;
 	mode: RealtimePushMode;
@@ -38,6 +43,7 @@ export type RealtimeContextPushRequest = {
 	kind: RealtimeUpdateKind;
 	summary?: string;
 	chunk?: RealtimeContextPushChunk;
+	rendering?: RealtimeContextPushRendering;
 };
 
 export type ProviderEventSink = {

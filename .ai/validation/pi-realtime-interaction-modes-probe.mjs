@@ -17,6 +17,8 @@ assert.match(source, /function providerInteractionFor/);
 assert.match(source, /function toolSurfaceFor/);
 assert.match(providerTypes, /interaction: ProviderInteractionConfig/);
 assert.match(promptSource, /function voiceSpeechRendererPrompt/);
+assert.match(promptSource, /strictVerbatimSpeechRendererPrompt/);
+assert.match(promptSource, /perResponseSpeechRendererPrompt/);
 assert.match(promptSource, /you have ZERO agency/);
 assert.match(promptSource, /Your only job is to speak backend_update payload text to the user/);
 assert.match(promptSource, /Do not summarize\. Ever\./);
@@ -27,5 +29,7 @@ assert.match(promptSource, /Do not speak metadata/);
 assert.match(promptSource, /Do not add greetings such as 'thanks for sharing'/);
 assert.match(promptSource, /Preserve concrete facts, numbers, file paths, command names, custom type names, costs, caveats, and conclusions/);
 assert.match(promptSource, /Literal delivery is correct; helpful summarization is failure/);
+assert.match(promptSource, /per-response instructions tell you whether to speak that source verbatim or give a compact spoken summary/i);
+assert.match(promptSource, /Summarize only the source text compactly for speech cost control/i);
 
 console.log("PASS pi-realtime interaction mode policy probe");
