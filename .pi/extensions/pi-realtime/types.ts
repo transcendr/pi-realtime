@@ -25,7 +25,7 @@ export type BackendSpeechContext = "default_conversation" | "isolated_update";
 export type VoiceInstructionSource = "model_tool" | "direct_transcript" | "manual_text";
 export type SpeechChunkSplitStrategy = "sentence";
 export type BackendUpdateSpeechRenderingMode = "verbatim" | "compact_summary";
-export type BackendUpdateSpeechEnvelope = "speak_this_verbatim" | "speech_source";
+export type BackendUpdateSpeechEnvelope = "speak_this_verbatim" | "speech_source" | "json_task";
 export type BackendUpdateSpeechRendererSystemPromptMode = "strict_verbatim" | "per_response_rendering";
 
 export type BackendUpdateSpeechChunkingPolicy = {

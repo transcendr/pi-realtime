@@ -24,7 +24,7 @@ export const WEAK_REALTIME_SPEECH_RENDERER_PROFILE: RealtimeBehaviorProfileFragm
 		},
 		rendering: {
 			systemPromptMode: "strict_verbatim",
-			envelope: "speak_this_verbatim",
+			envelope: "json_task",
 			defaultMode: "verbatim",
 		},
 	},

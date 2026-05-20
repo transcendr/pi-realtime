@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.2.0 - 2026-05-20
+
+### Highlights
+
+- Added eco mode so spoken user requests can route directly to Pi while realtime voice focuses on speaking Pi updates back.
+- Improved OpenAI spoken backend updates for practical use: mini now reads Pi updates more literally, realtime-2 can summarize long updates compactly, and multi-part updates are spoken in order.
+
+### Added
+
+- Added OpenAI realtime model selection commands for choosing `gpt-realtime-mini` or `gpt-realtime-2` for future sessions.
+- Added model-profiled speech behavior for Pi-to-realtime updates, including compact long-form speech for strong models and literal JSON task delivery for weak models.
+- Added ordered multi-part speech delivery for OpenAI WebRTC sessions so long spoken updates keep their intended order.
+- Added richer trace and usage evidence for auditing spoken update behavior and cost.
+
+### Changed
+
+- Updated the README to focus on the main user workflow: OpenAI eco sessions, model choice, status, usage, and stop commands.
+- Made spoken backend updates more predictable across OpenAI realtime models while keeping full Pi responses visible in text.
+
 ## 0.1.0 - 2026-05-19
 
 First preview release of `pi-realtime`.

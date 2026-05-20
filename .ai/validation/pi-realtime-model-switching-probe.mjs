@@ -28,6 +28,7 @@ assert.match(behaviorProfiles, /systemPromptMode: "strict_verbatim"/);
 assert.match(behaviorProfiles, /envelope: "speak_this_verbatim"/);
 assert.match(behaviorProfiles, /defaultMode: "verbatim"/);
 assert.match(behaviorProfiles, /WEAK_REALTIME_SPEECH_RENDERER_PROFILE[\s\S]*enabled: true[\s\S]*maxChars: 800[\s\S]*splitStrategy: "sentence"/);
+assert.match(behaviorProfiles, /WEAK_REALTIME_SPEECH_RENDERER_PROFILE[\s\S]*envelope: "json_task"/);
 assert.match(behaviorProfiles, /STRONG_REALTIME_SPEECH_RENDERER_PROFILE[\s\S]*systemPromptMode: "per_response_rendering"[\s\S]*envelope: "speech_source"[\s\S]*longTextThresholdChars: 300[\s\S]*longTextMode: "compact_summary"/);
 assert.match(behaviorProfiles, /resolveRealtimeBehaviorProfile/);
 assert.match(behaviorProfiles, /\.\.\.DEFAULT_BEHAVIOR_PROFILE\.backendUpdateSpeech\.chunking/);
