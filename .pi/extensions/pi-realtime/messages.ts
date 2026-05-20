@@ -12,10 +12,7 @@ export function registerRealtimeMessageRenderers(pi: ExtensionAPI): void {
 
 export function renderRealtimeRequestMessage(input: VoiceInstructionInput): string {
 	const lines = [
-		"Realtime voice request from the user.",
-		"Treat this as the user's request delivered through the realtime interface. You are the backend worker for this request.",
-		"Use realtime_send_ack for a short acknowledgement before work when appropriate, realtime_send_status for meaningful progress updates, and realtime_send_text for summaries/reports/final answers that should reach the realtime interface.",
-		"Do not wait for the realtime interface to do backend work; perform the requested work here and report back through the realtime_send_* tools when useful.",
+		"Realtime voice request. Handle this as backend work and reply through realtime_send_* when useful.",
 		"",
 		"<request>",
 		input.instructionText.trim(),

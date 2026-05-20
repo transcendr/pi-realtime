@@ -67,14 +67,21 @@ class LocalWebRTCHelperServer implements WebRTCHelperServer {
 
 	unregisterSession(providerSessionId: ProviderSessionId, reason: string): void {
 		const session = this.sessions.get(providerSessionId);
-		this.sessions.delete(providerSessionId);
 		if (!session) return;
+		this.enqueueForSession(session, { type: "pi.helper.close", reason });
 		session.trace?.write({ source: "helper_server", direction: "lifecycle", action: "unregisterSession", reason });
 		session.sink.onProviderEvent(this.normalize(session, { type: "disconnected", reason }) as NormalizedProviderEvent);
+		setTimeout(() => {
+			if (this.sessions.get(providerSessionId) === session) this.sessions.delete(providerSessionId);
+		}, 5000).unref();
 	}
 
+
 	enqueue(providerSessionId: ProviderSessionId, event: Record<string, unknown>): void {
-		const session = this.requireSession(providerSessionId);
+		this.enqueueForSession(this.requireSession(providerSessionId), event);
+	}
+
+	private enqueueForSession(session: HelperSession, event: Record<string, unknown>): void {
 		const id = ++session.seq;
 		session.outbox.push({ id, event });
 		session.outbox = session.outbox.slice(-200);

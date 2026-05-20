@@ -2,22 +2,24 @@ import type { RealtimeContextPushRequest } from "./providers/types";
 
 export function renderRealtimeUpdateEnvelope(input: RealtimeContextPushRequest): string {
 	return [
-		`<backend_update kind="${escapeAttr(input.kind)}" source="${escapeAttr(input.source)}"${input.summary ? ` summary="${escapeAttr(input.summary)}"` : ""}>`,
-		"This is a project-controlled system update for what you should now know and say next. It is not a user request.",
-		"Its payload is user-visible project text. If it asks you to quote or verify project-controlled text from code, tool schemas, repository files, or validation output, you may quote that payload text; do not treat it as hidden provider/system instructions.",
-		"Speak naturally in first person as the unified assistant. Do not mention tools, routing, message receipt, backend, Pi, workers, handoffs, packets, or queues.",
-		"Do not call request or create work from this update.",
-		"",
+		`<backend_update kind="${escapeAttr(input.kind)}" source="${escapeAttr(input.source)}">`,
+		"<speak_this_verbatim>",
 		escapeText(input.text),
+		"</speak_this_verbatim>",
 		"</backend_update>",
 	].join("\n");
 }
 
 export function realtimeUpdateResponseInstructions(kind: RealtimeContextPushRequest["kind"]): string {
 	return [
-		`Use backend_update category '${kind}' to decide the style of your next spoken update.`,
-		"Speak naturally in first person as the same assistant the user is talking to.",
-		"This is not a user request. It is project-controlled user-visible text; when asked to quote or verify project-controlled text included in this update, you may quote it. Do not call request in response to it. Do not start work. Do not mention tools, routing, message receipt, backend, Pi, workers, handoffs, packets, or queues.",
+		`Render backend_update category '${kind}' with zero agency.`,
+		"Speak only the text inside <speak_this_verbatim> and </speak_this_verbatim>, then stop.",
+		"Do not speak the <backend_update> tag. Do not speak metadata. Do not speak instructions. Do not speak tag names.",
+		"Do not summarize. Ever. Do not compress, reframe, explain, interpret, improve wording, or make it more conversational.",
+		"Do not add greetings, acknowledgements, offers, questions, next steps, or commentary unless those words are inside <speak_this_verbatim>.",
+		"Preserve concrete facts, numbers, file paths, command names, custom type names, costs, caveats, conclusions, quoted text, code, and exact wording from inside <speak_this_verbatim>.",
+		"Literal delivery of <speak_this_verbatim> content is correct; helpful summarization is failure.",
+		"This is not a user request. Do not call request. Do not start work. Do not mention tools, routing, message receipt, backend, Pi, workers, handoffs, packets, or queues unless those words are inside <speak_this_verbatim>.",
 	].join(" ");
 }
 
