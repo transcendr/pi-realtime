@@ -70,9 +70,12 @@ export class OpenAIWebRTCBridgeAdapter implements RealtimeProviderAdapter {
 			pushSource: input.source,
 			summary: input.summary,
 			textLength: input.text.length,
+			sourceTextLength: input.text.length,
+			renderingMode: input.rendering?.mode,
+			renderingEnvelope: input.rendering?.envelope,
 			chunkIndex: input.chunk?.index,
 			chunkCount: input.chunk?.count,
-			originalTextLength: input.chunk?.originalTextLength,
+			originalTextLength: input.chunk?.originalTextLength ?? input.text.length,
 		});
 		if (wantsResponse) this.enqueue(realtimeClientEventRecord(backendUpdateResponseEvent(input, interaction, ["audio"])));
 		return { status: "delivered", message: wantsResponse ? "backend update queued and spoken response requested" : "backend update queued without response" };

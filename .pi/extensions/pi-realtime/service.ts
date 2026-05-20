@@ -344,10 +344,13 @@ class RealtimeService implements Service {
 			pushSource: request.source,
 			summary: request.summary,
 			textLength: request.text.length,
+			sourceTextLength: request.text.length,
+			renderingMode: request.rendering?.mode,
+			renderingEnvelope: request.rendering?.envelope,
 			responseRequested: request.mode === "request_spoken_response",
 			chunkIndex: request.chunk?.index,
 			chunkCount: request.chunk?.count,
-			originalTextLength: request.chunk?.originalTextLength,
+			originalTextLength: request.chunk?.originalTextLength ?? request.text.length,
 			receiptStatus: receipt.status,
 		});
 	}
