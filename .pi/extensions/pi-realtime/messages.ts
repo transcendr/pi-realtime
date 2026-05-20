@@ -27,8 +27,8 @@ export function renderRealtimeRequestMessage(input: VoiceInstructionInput): stri
 
 export function renderRealtimeSessionMessage(session: VoiceSessionRecord, active: boolean): string {
 	return active
-		? `Realtime voice interface is active for session ${session.providerSessionId} (${session.provider}/${session.model}). This is non-turn-triggering session context for the next real Pi turn. If incoming work is delivered as a realtime request, actively use realtime_send_ack, realtime_send_status, and realtime_send_text as the main communication path back to the voice interface.`
-		: `Realtime voice interface stopped for session ${session.providerSessionId} (${session.provider}/${session.model}). This is non-turn-triggering session context for the next real Pi turn. Realtime is not currently active unless another realtime session is explicitly reported active. Do not use realtime_send_* unless realtime_status shows a live target.`;
+		? `Realtime voice interface is active for session ${session.providerSessionId} (${session.provider}/${session.model}, mode=${session.interactionMode}). This is non-turn-triggering session context for the next real Pi turn. If incoming work is delivered as a realtime request, actively use realtime_send_ack, realtime_send_status, and realtime_send_text as the main communication path back to the voice interface.`
+		: `Realtime voice interface stopped for session ${session.providerSessionId} (${session.provider}/${session.model}, mode=${session.interactionMode}). This is non-turn-triggering session context for the next real Pi turn. Realtime is not currently active unless another realtime session is explicitly reported active. Do not use realtime_send_* unless realtime_status shows a live target.`;
 }
 
 function realtimeRequestContextLines(input: VoiceInstructionInput): string[] {
@@ -37,6 +37,7 @@ function realtimeRequestContextLines(input: VoiceInstructionInput): string[] {
 	if (input.citedCitationIds.length > 0) lines.push(`- Cited Pinotator citation ids: ${input.citedCitationIds.join(", ")}`);
 	if (input.citationDeckRevision !== undefined) lines.push(`- Realtime citation deck revision: ${input.citationDeckRevision}`);
 	lines.push(`- Realtime provider session id: ${input.providerSessionId}`);
+	lines.push(`- Realtime instruction source: ${input.source}`);
 	lines.push(`- Urgency: ${input.urgency}`);
 	if (input.deliveryHint) lines.push(`- Delivery hint: ${input.deliveryHint}`);
 	if (input.voiceToolCallId) lines.push(`- Realtime request call id: ${input.voiceToolCallId}`);

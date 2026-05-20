@@ -30,7 +30,7 @@ export function createControlPlane(pi: ExtensionAPI, store: Store, getContext: (
 }
 
 function sendRealtimeRequest(pi: ExtensionAPI, input: VoiceInstructionInput, delivery: VoiceInstructionReceipt["delivery"]): void {
-	const message = { customType: REALTIME_REQUEST_MESSAGE_TYPE, content: renderRealtimeRequestMessage(input), display: true, details: { providerSessionId: input.providerSessionId, provider: input.provider, instructionId: input.instructionId, voiceToolCallId: input.voiceToolCallId, urgency: input.urgency, at: Date.now() } };
+	const message = { customType: REALTIME_REQUEST_MESSAGE_TYPE, content: renderRealtimeRequestMessage(input), display: true, details: { providerSessionId: input.providerSessionId, provider: input.provider, instructionId: input.instructionId, source: input.source, voiceToolCallId: input.voiceToolCallId, urgency: input.urgency, at: Date.now() } };
 	if (delivery === "immediate") pi.sendMessage(message, { triggerTurn: true });
 	else pi.sendMessage(message, { deliverAs: delivery, triggerTurn: true });
 }
@@ -54,9 +54,9 @@ function createInstructionSink(pi: ExtensionAPI, store: Store, getContext: () =>
 	};
 }
 
-function chooseDelivery(ctx: ExtensionContext | undefined, input: Pick<VoiceInstructionInput, "urgency" | "deliveryHint">): VoiceInstructionReceipt["delivery"] {
+function chooseDelivery(ctx: ExtensionContext | undefined, input: Pick<VoiceInstructionInput, "urgency" | "deliveryHint" | "source">): VoiceInstructionReceipt["delivery"] {
 	if (!ctx || ctx.isIdle()) return "immediate";
-	if (input.urgency === "interrupt" || input.deliveryHint === "progress") return "steer";
+	if (input.urgency === "interrupt" || input.deliveryHint === "progress" || input.source === "direct_transcript") return "steer";
 	return "followUp";
 }
 

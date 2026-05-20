@@ -1,6 +1,7 @@
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import type { Service } from "./service";
-import type { ProviderKind, ProviderSessionId, VoiceToolName } from "./types";
+import { parseInteractionMode } from "./domain/interaction-modes";
+import type { ProviderKind, ProviderSessionId, RealtimeInteractionModeId, VoiceToolName } from "./types";
 
 export async function handleRealtimeCommand(args: string, ctx: ExtensionCommandContext, service: Service): Promise<void> {
 	service.refresh(ctx);
@@ -11,6 +12,7 @@ export async function handleRealtimeCommand(args: string, ctx: ExtensionCommandC
 	if (cmd === "start") return start(rest, ctx, service);
 	if (cmd === "stop") return stop(rest, ctx, service);
 	if (cmd === "primary") return primary(rest, ctx, service);
+	if (cmd === "mode") return mode(rest, ctx, service);
 	if (cmd === "citations") return citations(ctx, service);
 	if (cmd === "usage") return usage(rest, ctx, service);
 	if (cmd === "debug") return debug(rest, ctx, service);
@@ -24,7 +26,7 @@ export async function handleRealtimeCommand(args: string, ctx: ExtensionCommandC
 }
 
 export function realtimeCompletions(): string[] {
-	return ["status", "start --provider fake", "start --provider openai", "text", "mic start", "mic stop", "audio start", "audio stop", "webrtc on", "webrtc off", "openai", "openai start", "openai stop", "openai text", "openai mic start", "openai mic stop", "openai audio start", "openai audio stop", "openai webrtc start", "openai webrtc stop", "openai webrtc status", "usage", "usage --details", "usage reset", "debug", "fake transcript", "fake tool request {\"request\":\"...\"}", "stop", "primary", "citations", "help"];
+	return ["status", "start --provider fake --mode agent", "start --provider openai --mode eco", "mode agent", "mode eco", "text", "mic start", "mic stop", "audio start", "audio stop", "webrtc on", "webrtc off", "openai", "openai start --mode eco", "openai stop", "openai text", "openai mic start", "openai mic stop", "openai audio start", "openai audio stop", "openai webrtc start", "openai webrtc stop", "openai webrtc status", "usage", "usage --details", "usage reset", "debug", "fake transcript", "fake tool request {\"request\":\"...\"}", "stop", "primary", "citations", "help"];
 }
 
 async function start(tokens: string[], ctx: ExtensionCommandContext, service: Service): Promise<void> {
@@ -32,9 +34,10 @@ async function start(tokens: string[], ctx: ExtensionCommandContext, service: Se
 	const model = valueAfter(tokens, "--model") ?? service.defaultModelFor(provider);
 	const personaId = valueAfter(tokens, "--persona") ?? "default";
 	const primary = !tokens.includes("--secondary");
+	const interactionMode = modeArg(tokens) ?? service.defaultInteractionMode();
 	try {
-		const providerSessionId = await service.startSession({ provider, model, personaId, primary }, ctx);
-		notify(ctx, `Started ${provider} realtime session ${providerSessionId} (${model}).${primary ? "" : " Not primary."}`);
+		const providerSessionId = await service.startSession({ provider, model, personaId, primary, interactionMode }, ctx);
+		notify(ctx, `Started ${provider} realtime session ${providerSessionId} (${model}, mode=${interactionMode}).${primary ? "" : " Not primary."}`);
 		const warning = service.providerWarning(provider);
 		if (warning) notify(ctx, warning, "warning");
 	} catch (error) {
@@ -55,6 +58,12 @@ function primary(tokens: string[], ctx: ExtensionCommandContext, service: Servic
 	if (!providerSessionId) return notify(ctx, "Usage: /realtime primary <providerSessionId>", "warning");
 	service.setPrimary(providerSessionId);
 	notify(ctx, `Primary realtime session set to ${providerSessionId}.`);
+}
+
+function mode(tokens: string[], ctx: ExtensionCommandContext, service: Service): void {
+	const selected = parseInteractionMode(tokens[0]);
+	if (!selected) return notify(ctx, `Current default realtime interaction mode: ${service.defaultInteractionMode()}\nUsage: /realtime mode agent|eco`, "warning");
+	notify(ctx, service.setDefaultInteractionMode(selected));
 }
 
 function citations(ctx: ExtensionCommandContext, service: Service): void {
@@ -152,13 +161,14 @@ async function startProvider(provider: ProviderKind, tokens: string[], ctx: Exte
 	const model = valueAfter(tokens, "--model") ?? service.defaultModelFor(provider);
 	const personaId = valueAfter(tokens, "--persona") ?? "default";
 	try {
-		const providerSessionId = await service.startSession({ provider, model, personaId, primary: !tokens.includes("--secondary") }, ctx);
+		const interactionMode = modeArg(tokens) ?? service.defaultInteractionMode();
+		const providerSessionId = await service.startSession({ provider, model, personaId, primary: !tokens.includes("--secondary"), interactionMode }, ctx);
 		const mediaMode = service.providerPreference(provider).autoMediaMode;
 		if (mediaMode && mediaMode !== "none" && mediaMode !== "raw") {
 			const url = await service.startSessionMedia(providerSessionId, mediaMode, ctx);
-			return notify(ctx, `Started ${provider} realtime session ${providerSessionId} (${model}) and opened ${mediaMode} media: ${url}`);
+			return notify(ctx, `Started ${provider} realtime session ${providerSessionId} (${model}, mode=${interactionMode}) and opened ${mediaMode} media: ${url}`);
 		}
-		notify(ctx, `Started ${provider} realtime session ${providerSessionId} (${model}).`);
+		notify(ctx, `Started ${provider} realtime session ${providerSessionId} (${model}, mode=${interactionMode}).`);
 	} catch (error) {
 		notify(ctx, error instanceof Error ? error.message : String(error), "warning");
 	}
@@ -229,6 +239,10 @@ function providerArg(tokens: string[]): ProviderKind | undefined {
 	return value === "fake" || value === "openai" || value === "gemini" ? value : undefined;
 }
 
+function modeArg(tokens: string[]): RealtimeInteractionModeId | undefined {
+	return parseInteractionMode(valueAfter(tokens, "--mode"));
+}
+
 function valueAfter(tokens: string[], flag: string): string | undefined {
 	const index = tokens.indexOf(flag);
 	return index >= 0 ? tokens[index + 1] : undefined;
@@ -255,7 +269,7 @@ function notify(ctx: ExtensionCommandContext, message: string, level: "info" | "
 function helpText(): string {
 	return [
 		"/realtime status — show provider sessions",
-		"/realtime start --provider fake|openai|gemini [--model <id>] [--secondary]",
+		"/realtime start --provider fake|openai|gemini [--model <id>] [--mode agent|eco] [--secondary]",
 		"/realtime text <message> — send text to the primary live provider session",
 		"/realtime mic start|stop|status — stream local microphone to the primary session",
 		"/realtime audio start|stop|status — play provider audio from the primary session",
@@ -268,6 +282,7 @@ function helpText(): string {
 		"/realtime fake transcript <text>",
 		"/realtime fake tool <tool_name> <json>",
 		"/realtime stop [--session <id>]",
+		"/realtime mode agent|eco — set default interaction mode for future sessions",
 		"/realtime primary <providerSessionId>",
 		"/realtime citations — inspect current Pinotator citation deck",
 		"/realtime usage [--session <id>] [--details] — inspect provider usage telemetry and estimated response cost",

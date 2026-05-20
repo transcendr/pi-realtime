@@ -24,7 +24,7 @@ async function sendRequestFromTool(call: VoiceToolCallRecord, ctx: ExtensionCont
 	const instructionText = stringArg(call.arguments.request) || stringArg(call.arguments.instruction) || stringArg(call.arguments.text);
 	if (!instructionText) return "Rejected request: missing required non-empty request text. Ask the user for clarification or call request again with the exact action requested.";
 	const deck = controlPlane.observeCitations(ctx);
-	await controlPlane.instructionSink.sendInstruction({ instructionId: call.voiceToolCallId, provider: call.provider, providerSessionId: call.providerSessionId, voiceToolCallId: call.voiceToolCallId, providerToolCallId: call.providerToolCallId, target: controlPlane.currentTarget(ctx), urgency: call.arguments.urgency === "interrupt" ? "interrupt" : "normal", deliveryHint: call.arguments.deliveryHint === "progress" ? "progress" : "work", instructionText, userUtteranceSummary: stringArg(call.arguments.userUtteranceSummary), citedCitationIds: stringArrayArg(call.arguments.citedCitationIds), citationDeckRevision: deck.revision });
+	await controlPlane.instructionSink.sendInstruction({ instructionId: call.voiceToolCallId, source: "model_tool", provider: call.provider, providerSessionId: call.providerSessionId, voiceToolCallId: call.voiceToolCallId, providerToolCallId: call.providerToolCallId, target: controlPlane.currentTarget(ctx), urgency: call.arguments.urgency === "interrupt" ? "interrupt" : "normal", deliveryHint: call.arguments.deliveryHint === "progress" ? "progress" : "work", instructionText, userUtteranceSummary: stringArg(call.arguments.userUtteranceSummary), citedCitationIds: stringArrayArg(call.arguments.citedCitationIds), citationDeckRevision: deck.revision });
 	return "Request submitted.";
 }
 

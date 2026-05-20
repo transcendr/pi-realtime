@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { EVENT_VERSION, type CitationDeck, type CitationDeckSummary, type ContextPacket, type ContextPacketSummary, type NormalizedProviderEvent, type ProviderDeliveryReceipt, type ProviderKind, type ProviderSessionId, type RealtimeConfig, type RealtimeConfigPatch, type RealtimeEvent, type RealtimeHistorySummary, type RealtimeState, type UsageObservation, type VoiceInstructionInput, type VoiceInstructionReceipt, type VoiceSessionRecord, type VoiceToolCallRecord, type VoiceToolResultRecord } from "./types";
 
-export const defaultConfig: RealtimeConfig = { primaryProviderSessionId: null, defaultProvider: "fake", defaultPersonaId: "default", providerPreferences: {} };
+export const defaultConfig: RealtimeConfig = { primaryProviderSessionId: null, defaultProvider: "fake", defaultPersonaId: "default", defaultInteractionMode: "agent", providerPreferences: {} };
 
 export function createInitialState(config: RealtimeConfig = defaultConfig): RealtimeState {
 	return { config: { ...config }, sessions: new Map(), primaryProviderSessionId: config.primaryProviderSessionId, pendingToolCalls: new Map(), contextRevisions: new Map(), citationDeck: null, usage: [], usageResets: [], history: [] };
@@ -32,7 +32,7 @@ export function applyEvent(state: RealtimeState, event: RealtimeEvent): void {
 }
 
 function applySessionStarted(state: RealtimeState, event: Extract<RealtimeEvent, { kind: "session_started" }>): void {
-	state.sessions.set(event.session.providerSessionId, { ...event.session });
+	state.sessions.set(event.session.providerSessionId, { ...event.session, interactionMode: event.session.interactionMode ?? "agent" });
 	state.primaryProviderSessionId = state.primaryProviderSessionId ?? event.session.providerSessionId;
 	state.config.primaryProviderSessionId = state.primaryProviderSessionId;
 }
@@ -71,12 +71,12 @@ function applyCitationDeck(state: RealtimeState, deck: CitationDeckSummary): voi
 function applyConfigPatch(state: RealtimeState, patch: RealtimeConfigPatch): void {
 	const { openaiWebRTCEnabled, providerPreferences, ...rest } = patch;
 	const migratedOpenAI = typeof openaiWebRTCEnabled === "boolean" ? { openai: { ...state.config.providerPreferences.openai, autoMediaMode: openaiWebRTCEnabled ? "webrtc" as const : "none" as const } } : {};
-	state.config = { ...state.config, ...rest, providerPreferences: { ...state.config.providerPreferences, ...providerPreferences, ...migratedOpenAI } };
+	state.config = { ...state.config, ...rest, defaultInteractionMode: rest.defaultInteractionMode ?? state.config.defaultInteractionMode ?? "agent", providerPreferences: { ...state.config.providerPreferences, ...providerPreferences, ...migratedOpenAI } };
 	state.primaryProviderSessionId = state.config.primaryProviderSessionId;
 }
 
-export function sessionStarted(session: Omit<VoiceSessionRecord, "status" | "startedAt"> & Partial<Pick<VoiceSessionRecord, "status" | "startedAt">>, at = Date.now()): RealtimeEvent {
-	return { version: EVENT_VERSION, kind: "session_started", eventId: id("evt"), at, session: { ...session, status: session.status ?? "active", startedAt: session.startedAt ?? at } };
+export function sessionStarted(session: Omit<VoiceSessionRecord, "status" | "startedAt" | "interactionMode"> & Partial<Pick<VoiceSessionRecord, "status" | "startedAt" | "interactionMode">>, at = Date.now()): RealtimeEvent {
+	return { version: EVENT_VERSION, kind: "session_started", eventId: id("evt"), at, session: { ...session, interactionMode: session.interactionMode ?? "agent", status: session.status ?? "active", startedAt: session.startedAt ?? at } };
 }
 
 export function sessionStopped(providerSessionId: ProviderSessionId, reason: string, at = Date.now()): RealtimeEvent {

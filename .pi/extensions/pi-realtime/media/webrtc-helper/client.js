@@ -10,6 +10,7 @@ let currentStream;
 let lastOutboxId = 0;
 let pollTimer;
 let pollInFlight = false;
+let interactionConfig;
 
 function outboxCursorStorageKey() {
 	return `pi-realtime:${providerSessionId}:lastOutboxId`;
@@ -22,6 +23,7 @@ async function start() {
 	setStatus("Connecting…", "warn");
 	cleanupCurrentConnection();
 	const config = await json(`/pi-realtime/openai/${encodeURIComponent(providerSessionId)}/config`);
+	interactionConfig = config.interaction;
 	lastOutboxId = initialOutboxCursor(config);
 	const secret = await json(`/pi-realtime/openai/${encodeURIComponent(providerSessionId)}/client-secret`, { method: "POST" });
 	const pc = new RTCPeerConnection();
@@ -139,6 +141,10 @@ function handleInputAudioTranscription(event) {
 	}
 	if (!isTranscriptActionable(transcript)) {
 		trace("response_suppressed", { reason: "low_information_transcript", providerEventId: event.event_id, itemId: event.item_id, transcriptTextLength: transcript.length, lexicalLength: lexicalContentLength(transcript) });
+		return;
+	}
+	if (interactionConfig?.transcriptHandling?.response === "suppress") {
+		trace("response_suppressed", { reason: "direct_transcript_policy", providerEventId: event.event_id, itemId: event.item_id, transcriptTextLength: transcript.length, lexicalLength: lexicalContentLength(transcript) });
 		return;
 	}
 	requestResponse("valid_transcript", event.event_id);

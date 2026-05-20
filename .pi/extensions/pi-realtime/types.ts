@@ -16,6 +16,36 @@ export type PiTargetRef = {
 };
 
 export type ProviderMediaMode = "raw" | "webrtc" | "none";
+export type RealtimeInteractionModeId = "agent" | "eco";
+export type TranscriptResponsePolicy = "model" | "suppress";
+export type TranscriptBackendRoute = "none" | "submit_instruction";
+export type TranscriptRetentionPolicy = "retain" | "delete_after_transcript";
+export type ToolChoicePolicy = "auto" | "none";
+export type BackendSpeechContext = "default_conversation" | "isolated_update";
+export type VoiceInstructionSource = "model_tool" | "direct_transcript" | "manual_text";
+
+export type TranscriptHandlingPolicy = {
+	response: TranscriptResponsePolicy;
+	backendRoute: TranscriptBackendRoute;
+	retention: TranscriptRetentionPolicy;
+};
+
+export type ProviderInteractionConfig = {
+	mode: RealtimeInteractionModeId;
+	tools: VoiceToolDefinition[];
+	toolChoice: ToolChoicePolicy;
+	transcriptHandling: TranscriptHandlingPolicy;
+	backendSpeechContext: BackendSpeechContext;
+};
+
+export type RealtimeInteractionMode = {
+	id: RealtimeInteractionModeId;
+	toolSurface: VoiceToolSurface;
+	systemPrompt(surface: VoiceToolSurface): string;
+	acceptModelToolCalls: boolean;
+	initialContextPolicy: "full" | "minimal";
+	providerInteraction: ProviderInteractionConfig;
+};
 
 export type ProviderPreferences = {
 	autoMediaMode?: ProviderMediaMode;
@@ -25,6 +55,7 @@ export type RealtimeConfig = {
 	primaryProviderSessionId: ProviderSessionId | null;
 	defaultProvider: ProviderKind;
 	defaultPersonaId: string;
+	defaultInteractionMode: RealtimeInteractionModeId;
 	providerPreferences: Partial<Record<ProviderKind, ProviderPreferences>>;
 };
 
@@ -38,6 +69,7 @@ export type VoiceSessionRecord = {
 	provider: ProviderKind;
 	model: string;
 	personaId: string;
+	interactionMode: RealtimeInteractionModeId;
 	status: "starting" | "active" | "stopping" | "stopped" | "error";
 	startedAt: number;
 	stoppedAt?: number;
@@ -178,6 +210,7 @@ export type VoiceToolResultRecord = {
 
 export type VoiceInstructionInput = {
 	instructionId: InstructionId;
+	source: VoiceInstructionSource;
 	provider: ProviderKind;
 	providerSessionId: ProviderSessionId;
 	voiceToolCallId?: VoiceToolCallId;
