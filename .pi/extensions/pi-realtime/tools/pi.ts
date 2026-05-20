@@ -1,4 +1,5 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { AgentToolResult, ExtensionAPI, ToolRenderResultOptions } from "@earendil-works/pi-coding-agent";
+import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import type { Service } from "../service";
 import type { RealtimePushSource } from "../types";
@@ -74,7 +75,23 @@ function registerRealtimeSendTool(pi: ExtensionAPI, service: Service, input: { n
 		parameters: RealtimeSendParams,
 		async execute(_toolCallId, params) {
 			const message = await service.pushRealtimeContext({ providerSessionId: params.providerSessionId, text: params.text, mode: "request_spoken_response", source: input.source, kind: input.kind, summary: params.summary ?? input.defaultSummary });
-			return { content: [{ type: "text", text: message }], details: { providerSessionId: params.providerSessionId, tool: input.name, summary: params.summary ?? input.defaultSummary } };
+			return { content: [{ type: "text", text: message }], details: { providerSessionId: params.providerSessionId, tool: input.name, summary: params.summary ?? input.defaultSummary, sentText: params.text } };
 		},
+		renderResult: renderRealtimeSendResult,
 	});
+}
+
+function renderRealtimeSendResult(result: AgentToolResult<unknown>, _options: ToolRenderResultOptions, theme: { fg(role: string, text: string): string }, context: { args: { text?: unknown; summary?: unknown } }): Text {
+	const args = context.args;
+	const details = result.details as { sentText?: unknown; summary?: unknown } | undefined;
+	const sentText = typeof details?.sentText === "string" ? details.sentText : typeof args.text === "string" ? args.text : undefined;
+	const summary = typeof details?.summary === "string" ? details.summary : typeof args.summary === "string" ? args.summary : undefined;
+	const resultText = result.content.filter((part): part is { type: "text"; text: string } => part.type === "text").map((part) => part.text).join("\n");
+	const lines = [
+		theme.fg("warning", summary ?? "realtime_send"),
+		sentText ?? "[no text payload]",
+		"",
+		theme.fg("muted", resultText),
+	];
+	return new Text(lines.join("\n"), 0, 0);
 }

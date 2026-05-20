@@ -11,15 +11,22 @@ assert.match(typesSource, /CUSTOM_EVENT_TYPE = "pi-realtime\.events\.v1"/);
 assert.match(typesSource, /EVENT_VERSION = 1/);
 for (const kind of ["session_started", "session_stopped", "context_packet_sent", "voice_tool_call_received", "voice_instruction_submitted", "usage_observed", "citation_deck_observed"]) assert.match(typesSource, new RegExp(`kind: "${kind}"`));
 assert.match(typesSource, /usage: UsageObservation\[\]/);
+assert.match(typesSource, /defaultInteractionMode: RealtimeInteractionModeId/);
+assert.match(typesSource, /interactionMode: RealtimeInteractionModeId/);
+assert.match(typesSource, /source: VoiceInstructionSource/);
 assert.match(storeSource, /ctx\.sessionManager\.getBranch\(\)/);
 assert.match(storeSource, /pi\.appendEntry\(CUSTOM_EVENT_TYPE, event\)/);
 assert.match(storeSource, /local\.delete\(event\.eventId\)/);
 assert.match(eventsSource, /function replayEvents/);
+assert.match(eventsSource, /defaultInteractionMode: "agent"/);
+assert.match(eventsSource, /interactionMode: event\.session\.interactionMode \?\? "agent"/);
 assert.match(eventsSource, /pendingToolCalls\.set/);
 assert.match(eventsSource, /pendingToolCalls\.delete/);
 assert.match(controlPlaneSource, /pi\.sendMessage/);
 assert.match(controlPlaneSource, /REALTIME_REQUEST_MESSAGE_TYPE/);
 assert.match(controlPlaneSource, /voiceInstructionSubmitted/);
+assert.match(controlPlaneSource, /source: input\.source/);
+assert.match(controlPlaneSource, /input\.source === "direct_transcript"/);
 
 function replay(events) {
   const state = { sessions: new Map(), primary: null, pending: new Map(), context: new Map(), usage: [], lastInstruction: null };
@@ -43,7 +50,7 @@ function replay(events) {
 }
 
 const state = replay([
-  { version: 1, kind: "session_started", eventId: "evt-1", at: 1, session: { providerSessionId: "fake_a", provider: "fake", model: "fake-realtime", personaId: "default", status: "active", startedAt: 1 } },
+  { version: 1, kind: "session_started", eventId: "evt-1", at: 1, session: { providerSessionId: "fake_a", provider: "fake", model: "fake-realtime", personaId: "default", interactionMode: "eco", status: "active", startedAt: 1 } },
   { version: 1, kind: "voice_tool_call_received", eventId: "evt-2", at: 2, call: { voiceToolCallId: "call_1", provider: "fake", providerSessionId: "fake_a", name: "request", arguments: {}, status: "pending", createdAt: 2 } },
   { version: 1, kind: "context_packet_sent", eventId: "evt-3", at: 3, providerSessionId: "fake_a", packet: { packetId: "pkt_1", revision: 4, channel: "pi_state", priority: "normal", summary: "ok", createdAt: 3 }, receipt: { status: "delivered" } },
   { version: 1, kind: "voice_tool_result_sent", eventId: "evt-4", at: 4, result: { voiceToolCallId: "call_1", providerSessionId: "fake_a", status: "sent", resultText: "ok", at: 4 } },

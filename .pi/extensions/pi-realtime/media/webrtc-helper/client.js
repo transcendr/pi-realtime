@@ -10,6 +10,7 @@ let currentStream;
 let lastOutboxId = 0;
 let pollTimer;
 let pollInFlight = false;
+let interactionConfig;
 
 function outboxCursorStorageKey() {
 	return `pi-realtime:${providerSessionId}:lastOutboxId`;
@@ -22,6 +23,7 @@ async function start() {
 	setStatus("Connecting…", "warn");
 	cleanupCurrentConnection();
 	const config = await json(`/pi-realtime/openai/${encodeURIComponent(providerSessionId)}/config`);
+	interactionConfig = config.interaction;
 	lastOutboxId = initialOutboxCursor(config);
 	const secret = await json(`/pi-realtime/openai/${encodeURIComponent(providerSessionId)}/client-secret`, { method: "POST" });
 	const pc = new RTCPeerConnection();
@@ -103,6 +105,12 @@ async function pollOutbox() {
 		for (const item of result.events || []) {
 			lastOutboxId = Math.max(lastOutboxId, item.id);
 			storeOutboxCursor(lastOutboxId);
+			if (item.event?.type === "pi.helper.close") {
+				traceRealtimeEvent("helper_close_from_outbox", item.event, { outboxId: item.id });
+				postEvent({ type: "outbox_ack", outboxId: item.id }, { log: false }).catch((error) => log(`outbox ack failed: ${error.message}`));
+				handleHelperClose(item.event);
+				return;
+			}
 			traceRealtimeEvent("openai_outbound_from_outbox", item.event, { outboxId: item.id });
 			dc.send(JSON.stringify(item.event));
 			postEvent({ type: "outbox_ack", outboxId: item.id }, { log: false }).catch((error) => log(`outbox ack failed: ${error.message}`));
@@ -141,6 +149,10 @@ function handleInputAudioTranscription(event) {
 		trace("response_suppressed", { reason: "low_information_transcript", providerEventId: event.event_id, itemId: event.item_id, transcriptTextLength: transcript.length, lexicalLength: lexicalContentLength(transcript) });
 		return;
 	}
+	if (interactionConfig?.transcriptHandling?.response === "suppress") {
+		trace("response_suppressed", { reason: "direct_transcript_policy", providerEventId: event.event_id, itemId: event.item_id, transcriptTextLength: transcript.length, lexicalLength: lexicalContentLength(transcript) });
+		return;
+	}
 	requestResponse("valid_transcript", event.event_id);
 }
 
@@ -154,6 +166,15 @@ function lexicalContentLength(transcript) {
 
 function requestResponse(reason, providerEventId) {
 	sendRealtime({ type: "response.create", response: { output_modalities: ["audio"] } }, { label: "openai_outbound_response_create", reason, providerEventId });
+}
+
+function handleHelperClose(event) {
+	const reason = event.reason || "session stopped";
+	log(`helper close: ${reason}`);
+	setStatus(`Session stopped: ${reason}`, "warn");
+	cleanupCurrentConnection();
+	postEvent({ type: "disconnected", reason: `helper close: ${reason}` }).catch((error) => log(`disconnect post failed: ${error.message}`));
+	setTimeout(() => window.close(), 100);
 }
 
 function sendRealtime(event, traceOptions = {}) {

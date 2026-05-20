@@ -12,10 +12,7 @@ export function registerRealtimeMessageRenderers(pi: ExtensionAPI): void {
 
 export function renderRealtimeRequestMessage(input: VoiceInstructionInput): string {
 	const lines = [
-		"Realtime voice request from the user.",
-		"Treat this as the user's request delivered through the realtime interface. You are the backend worker for this request.",
-		"Use realtime_send_ack for a short acknowledgement before work when appropriate, realtime_send_status for meaningful progress updates, and realtime_send_text for summaries/reports/final answers that should reach the realtime interface.",
-		"Do not wait for the realtime interface to do backend work; perform the requested work here and report back through the realtime_send_* tools when useful.",
+		"Realtime voice request. Handle this as backend work and reply through realtime_send_* when useful.",
 		"",
 		"<request>",
 		input.instructionText.trim(),
@@ -27,8 +24,8 @@ export function renderRealtimeRequestMessage(input: VoiceInstructionInput): stri
 
 export function renderRealtimeSessionMessage(session: VoiceSessionRecord, active: boolean): string {
 	return active
-		? `Realtime voice interface is active for session ${session.providerSessionId} (${session.provider}/${session.model}). This is non-turn-triggering session context for the next real Pi turn. If incoming work is delivered as a realtime request, actively use realtime_send_ack, realtime_send_status, and realtime_send_text as the main communication path back to the voice interface.`
-		: `Realtime voice interface stopped for session ${session.providerSessionId} (${session.provider}/${session.model}). This is non-turn-triggering session context for the next real Pi turn. Realtime is not currently active unless another realtime session is explicitly reported active. Do not use realtime_send_* unless realtime_status shows a live target.`;
+		? `Realtime voice interface is active for session ${session.providerSessionId} (${session.provider}/${session.model}, mode=${session.interactionMode}). This is non-turn-triggering session context for the next real Pi turn. If incoming work is delivered as a realtime request, actively use realtime_send_ack, realtime_send_status, and realtime_send_text as the main communication path back to the voice interface.`
+		: `Realtime voice interface stopped for session ${session.providerSessionId} (${session.provider}/${session.model}, mode=${session.interactionMode}). This is non-turn-triggering session context for the next real Pi turn. Realtime is not currently active unless another realtime session is explicitly reported active. Do not use realtime_send_* unless realtime_status shows a live target.`;
 }
 
 function realtimeRequestContextLines(input: VoiceInstructionInput): string[] {
@@ -37,6 +34,7 @@ function realtimeRequestContextLines(input: VoiceInstructionInput): string[] {
 	if (input.citedCitationIds.length > 0) lines.push(`- Cited Pinotator citation ids: ${input.citedCitationIds.join(", ")}`);
 	if (input.citationDeckRevision !== undefined) lines.push(`- Realtime citation deck revision: ${input.citationDeckRevision}`);
 	lines.push(`- Realtime provider session id: ${input.providerSessionId}`);
+	lines.push(`- Realtime instruction source: ${input.source}`);
 	lines.push(`- Urgency: ${input.urgency}`);
 	if (input.deliveryHint) lines.push(`- Delivery hint: ${input.deliveryHint}`);
 	if (input.voiceToolCallId) lines.push(`- Realtime request call id: ${input.voiceToolCallId}`);

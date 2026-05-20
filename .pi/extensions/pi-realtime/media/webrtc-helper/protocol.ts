@@ -1,5 +1,5 @@
 import type { DebugTraceRecorder } from "../../debug-trace";
-import type { ContextPacket, NormalizedProviderEvent, ProviderKind, ProviderSessionId, VoiceToolCallRecord, VoiceToolSurface } from "../../types";
+import type { ContextPacket, NormalizedProviderEvent, ProviderInteractionConfig, ProviderKind, ProviderSessionId, VoiceToolCallRecord, VoiceToolSurface } from "../../types";
 import type { UsageObservation, UsageSource } from "../../usage";
 
 export type WebRTCHelperSessionConfig = {
@@ -9,6 +9,7 @@ export type WebRTCHelperSessionConfig = {
 	instructions: string;
 	toolSurface: VoiceToolSurface;
 	initialContext: ContextPacket;
+	interaction: ProviderInteractionConfig;
 	debugTracePath?: string;
 	resumeOutboxAfter?: number;
 };

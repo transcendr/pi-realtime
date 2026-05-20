@@ -1,4 +1,4 @@
-import type { ContextPacket, DisconnectReason, NormalizedProviderEvent, ProviderDeliveryReceipt, ProviderKind, ProviderSessionId, RealtimePushMode, RealtimePushSource, RealtimeUpdateKind, VoiceToolResultRecord, VoiceToolSurface } from "../types";
+import type { ContextPacket, DisconnectReason, NormalizedProviderEvent, ProviderDeliveryReceipt, ProviderInteractionConfig, ProviderKind, ProviderSessionId, RealtimePushMode, RealtimePushSource, RealtimeUpdateKind, VoiceToolResultRecord, VoiceToolSurface } from "../types";
 
 export type ProviderCapabilityPreferences = {
 	preferPassiveContext: boolean;
@@ -15,6 +15,7 @@ export type ProviderConnectConfig = {
 	toolSurface: VoiceToolSurface;
 	initialContext: ContextPacket;
 	capabilities: ProviderCapabilityPreferences;
+	interaction: ProviderInteractionConfig;
 };
 
 export type VoiceResponseRequest = {
