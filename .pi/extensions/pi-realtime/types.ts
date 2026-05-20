@@ -49,6 +49,7 @@ export type RealtimeInteractionMode = {
 
 export type ProviderPreferences = {
 	autoMediaMode?: ProviderMediaMode;
+	defaultModel?: string;
 };
 
 export type RealtimeConfig = {

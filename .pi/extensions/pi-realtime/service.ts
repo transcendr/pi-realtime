@@ -21,6 +21,8 @@ export type Service = {
 	statusText(): string;
 	realtimeStatusText(providerSessionId?: ProviderSessionId): string;
 	defaultModelFor(provider: ProviderKind): string;
+	availableModelsFor(provider: ProviderKind): readonly string[];
+	setDefaultModel(provider: ProviderKind, model: string): string;
 	defaultInteractionMode(): RealtimeInteractionModeId;
 	setDefaultInteractionMode(mode: RealtimeInteractionModeId): string;
 	startSession(input: { provider: ProviderKind; model: string; personaId?: string; primary?: boolean; interactionMode?: RealtimeInteractionModeId }, ctx: ExtensionContext): Promise<ProviderSessionId>;
@@ -83,7 +85,17 @@ class RealtimeService implements Service {
 			live ? "Pi can use realtime_send_ack, realtime_send_status, or realtime_send_text for this target." : "No live realtime send target is available; continue normally in Pi and do not retry realtime_send_* tools until a new realtime active-session context message or realtime_status reports target live: yes.",
 		].join("\n");
 	}
-	defaultModelFor(provider: ProviderKind): string { return this.requireProviderRuntime(provider).defaultModel(); }
+	defaultModelFor(provider: ProviderKind): string { return this.providerPreference(provider).defaultModel ?? this.requireProviderRuntime(provider).defaultModel(); }
+	availableModelsFor(provider: ProviderKind): readonly string[] {
+		const runtime = this.requireProviderRuntime(provider);
+		return runtime.availableModels?.() ?? [runtime.defaultModel()];
+	}
+	setDefaultModel(provider: ProviderKind, model: string): string {
+		const available = this.availableModelsFor(provider);
+		if (!available.includes(model)) throw new Error(`${provider} realtime model must be one of: ${available.join(", ")}.`);
+		this.store.append(configChanged({ providerPreferences: { ...this.store.state().config.providerPreferences, [provider]: { ...this.providerPreference(provider), defaultModel: model } } }));
+		return `${provider} realtime default model set to ${model}. New sessions will use this model unless --model overrides it.`;
+	}
 	defaultInteractionMode(): RealtimeInteractionModeId { return this.store.state().config.defaultInteractionMode; }
 	setDefaultInteractionMode(mode: RealtimeInteractionModeId): string {
 		this.store.append(configChanged({ defaultInteractionMode: mode }));

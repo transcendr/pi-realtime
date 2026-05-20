@@ -29,6 +29,7 @@ export type ProviderMediaRuntime = {
 export type ProviderRuntime = {
 	provider: ProviderKind;
 	defaultModel(): string;
+	availableModels?(): readonly string[];
 	assertCredentials(): void;
 	createAdapter(input: ProviderAdapterInput): RealtimeProviderAdapter;
 	media?: Partial<Record<ProviderMediaMode, ProviderMediaRuntime>>;

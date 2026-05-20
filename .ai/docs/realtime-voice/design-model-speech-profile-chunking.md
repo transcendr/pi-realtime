@@ -848,3 +848,49 @@ Validation:
 - `npm run gates:validation` passed.
 
 CLEAN IMPLEMENTATION.
+
+### Phase A — prerequisite OpenAI model switching
+
+Interrogate:
+
+1. Where should OpenAI model names live? In `providers/openai/model-profiles.ts`, not in service/domain, so core code consumes runtime capabilities instead of model-name branches.
+2. How should a persisted default model survive replay and coexist with existing media preferences? Store it as `ProviderPreferences.defaultModel`; `setDefaultModel` preserves the existing provider preference object while replacing only `defaultModel`.
+3. How should invalid models be handled? `setDefaultModel` validates against `runtime.availableModels?.()` and throws a clear allowed-model error; the command catches and renders it as a warning.
+4. How does explicit `--model` precedence remain intact? Start commands still compute `valueAfter(tokens, "--model") ?? service.defaultModelFor(provider)`, so explicit flags override persisted defaults.
+5. How can this be validated without live OpenAI access? A deterministic probe checks types, runtime capabilities, command surface, validation path, persisted preference shape, and start-command precedence by source contract.
+
+Progress notes and unexpected outcomes:
+
+- Added `defaultModel?: string` to `ProviderPreferences`.
+- Added `availableModels?()` to `ProviderRuntime`.
+- Added `providers/openai/model-profiles.ts` with the OpenAI realtime model list.
+- Exposed OpenAI runtime `availableModels()`.
+- Updated service default model resolution, available-model listing, and default-model persistence.
+- Added `/realtime openai model [model]` command behavior, completions, and help text.
+- Added `.ai/validation/pi-realtime-model-switching-probe.mjs`.
+- No unexpected type or validation failures occurred.
+
+Deviations or trade-offs:
+
+- The model switching probe is source-contract based, matching the existing validation style in this repo. It avoids requiring live OpenAI credentials or a Pi TUI command harness for this phase.
+- `availableModelsFor` falls back to the runtime default when a provider does not expose a model list. This keeps the provider-neutral service method total while OpenAI remains the only user-facing model-switch command.
+
+Remaining risks or concerns:
+
+- This phase does not live-test `gpt-realtime-2` availability. Live proof remains Phase G.
+- Generic `/realtime start --provider openai --model <id>` still permits explicit model ids outside the persisted default list; this preserves the existing debug/override behavior and only constrains the persisted slash-command default.
+
+Validation:
+
+- `npm run gates:typecheck` passed.
+- `node .ai/validation/pi-realtime-model-switching-probe.mjs` passed.
+- `npm run gates:validation` passed.
+- Targeted deslop scan found no `as any`, `as unknown as`, `TODO`, `FIXME`, or service-level `model === "gpt-realtime-mini"` checks.
+
+Review:
+
+- Provider-specific model identity is isolated under the OpenAI provider edge.
+- Service exposes provider-neutral capability/preference operations.
+- Command parsing remains a thin user-facing layer over service methods.
+
+CLEAN IMPLEMENTATION.

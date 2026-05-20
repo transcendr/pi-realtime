@@ -33,7 +33,7 @@ export async function handleRealtimeCommand(args: string, ctx: ExtensionCommandC
 }
 
 export function realtimeCompletions(): string[] {
-	return ["status", "start --provider fake --mode agent", "start --provider openai --mode eco", "mode agent", "mode eco", "text", "mic start", "mic stop", "audio start", "audio stop", "webrtc on", "webrtc off", "openai", "openai start --mode eco", "openai stop", "openai text", "openai mic start", "openai mic stop", "openai audio start", "openai audio stop", "openai webrtc start", "openai webrtc stop", "openai webrtc status", "usage", "usage --details", "usage reset", "debug", "fake transcript", "fake tool request {\"request\":\"...\"}", "stop", "primary", "citations", "help"];
+	return ["status", "start --provider fake --mode agent", "start --provider openai --mode eco", "mode agent", "mode eco", "text", "mic start", "mic stop", "audio start", "audio stop", "webrtc on", "webrtc off", "openai", "openai start --mode eco", "openai model", "openai model gpt-realtime-mini", "openai model gpt-realtime-2", "openai stop", "openai text", "openai mic start", "openai mic stop", "openai audio start", "openai audio stop", "openai webrtc start", "openai webrtc stop", "openai webrtc status", "usage", "usage --details", "usage reset", "debug", "fake transcript", "fake tool request {\"request\":\"...\"}", "stop", "primary", "citations", "help"];
 }
 
 async function start(tokens: string[], ctx: ExtensionCommandContext, service: Service): Promise<void> {
@@ -155,13 +155,25 @@ async function openai(tokens: string[], ctx: ExtensionCommandContext, service: S
 	if (!subcommand) return latestActiveOpenAISession(service) ? stopProvider("openai", ctx, service) : startProvider("openai", rest, ctx, service);
 	if (subcommand === "start") return startProvider("openai", rest, ctx, service);
 	if (subcommand === "stop") return stopProvider("openai", ctx, service);
+	if (subcommand === "model") return openAIModel(rest, ctx, service);
 	const openaiSession = latestActiveOpenAISession(service);
 	if (!openaiSession) return notify(ctx, "No active OpenAI realtime session. Start one with /realtime openai start.", "warning");
 	if (subcommand === "text") return text(["--session", openaiSession.providerSessionId, ...rest], ctx, service);
 	if (subcommand === "mic") return mic([...rest, "--session", openaiSession.providerSessionId], ctx, service);
 	if (subcommand === "audio") return audio([...rest, "--session", openaiSession.providerSessionId], ctx, service);
 	if (subcommand === "webrtc") return webrtc(rest, ctx, service, openaiSession.providerSessionId);
-	return notify(ctx, "Usage: /realtime openai [start|stop] | openai text <message> | openai mic start|stop|status | openai audio start|stop|status | openai webrtc start|stop|status", "warning");
+	return notify(ctx, "Usage: /realtime openai [start|stop] | openai model [gpt-realtime-mini|gpt-realtime-2] | openai text <message> | openai mic start|stop|status | openai audio start|stop|status | openai webrtc start|stop|status", "warning");
+}
+
+function openAIModel(tokens: string[], ctx: ExtensionCommandContext, service: Service): void {
+	const model = tokens[0];
+	const available = service.availableModelsFor("openai");
+	if (!model) return notify(ctx, `Current OpenAI realtime default model: ${service.defaultModelFor("openai")}\nAvailable OpenAI realtime models: ${available.join(", ")}`);
+	try {
+		notify(ctx, service.setDefaultModel("openai", model));
+	} catch (error) {
+		notify(ctx, `${error instanceof Error ? error.message : String(error)}\nAvailable OpenAI realtime models: ${available.join(", ")}`, "warning");
+	}
 }
 
 async function startProvider(provider: ProviderKind, tokens: string[], ctx: ExtensionCommandContext, service: Service): Promise<void> {
@@ -282,6 +294,7 @@ function helpText(): string {
 		"/realtime audio start|stop|status — play provider audio from the primary session",
 		"/realtime webrtc on|off — persistently toggle OpenAI WebRTC auto-launch",
 		"/realtime openai [start|stop] — toggle/start/stop OpenAI; start launches WebRTC when enabled",
+		"/realtime openai model [gpt-realtime-mini|gpt-realtime-2] — show or set the default OpenAI realtime model for future sessions",
 		"/realtime openai text <message> — send text to the active OpenAI session",
 		"/realtime openai mic start|stop|status — stream local microphone to the active OpenAI session",
 		"/realtime openai audio start|stop|status — play OpenAI audio responses",
