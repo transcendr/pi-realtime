@@ -1066,3 +1066,44 @@ Review:
 - Provider payload construction still uses existing backend-update envelope and response instruction paths.
 
 CLEAN IMPLEMENTATION.
+
+### Phase F — full local quality
+
+Interrogate:
+
+1. Did the full workspace quality gate pass immediately? No. The first `npm run gates:quality` failed Sentrux because `service.ts` crossed the god-file fan-out threshold.
+2. What caused the structural regression? Phase D added direct service imports for behavior profile resolution and speech chunking, increasing service fan-out beyond the existing baseline.
+3. What remediation preserves architecture best? Move the provider-profile-to-chunk decision into the pure speech chunking domain module and keep service consuming one focused helper, `chunkRealtimePushSpeech`.
+4. Was any baseline bypass used? No. The Sentrux failure was remediated structurally; `sentrux gate --save` was not run.
+5. Did full quality pass after remediation? Yes. Structure, deslop, typecheck, validation, and offline Pi load all passed through `npm run gates:quality`.
+
+Progress notes and unexpected outcomes:
+
+- First full quality run failed with `God files increased: 0 → 1`, identifying `service.ts` fan-out.
+- Added `chunkRealtimePushSpeech` to `domain/speech-chunking.ts`, which centralizes profile resolution plus chunk eligibility for backend-update speech.
+- Removed direct service imports of `domain/behavior-profiles` and raw chunker internals.
+- Re-exported usage summary helpers from `view.ts` so service imports presentation helpers through one existing view boundary, reducing service fan-out below the Sentrux threshold.
+- Updated validation probes to assert service uses `chunkRealtimePushSpeech` and no longer imports direct profile/chunker internals.
+- Re-ran full quality successfully.
+
+Deviations or trade-offs:
+
+- `domain/speech-chunking.ts` now imports `domain/behavior-profiles.ts`. This keeps the dependency within pure domain policy/chunking code and removes orchestration-layer coupling.
+- `view.ts` re-exports usage presentation helpers. This is a small structural remediation so service can import presentation rendering through one boundary; underlying usage aggregation still lives in `usage.ts`.
+
+Remaining risks or concerns:
+
+- Full local quality does not prove live OpenAI/WebRTC burst queueing, audio playback order, or barge-in cancellation. Those remain Phase G live-proof items.
+
+Validation:
+
+- Initial `npm run gates:quality` failed on Sentrux god-file fan-out.
+- `sentrux check .pi/extensions/pi-realtime` confirmed `service.ts (fan-out=16)` after the first remediation attempt.
+- Final `npm run gates:quality` passed.
+
+Review:
+
+- The final structure is better than the initial Phase D integration because profile/chunk policy is encapsulated in domain logic and service remains orchestration-focused.
+- Deslop hard gate passed with zero reported error-severity findings.
+
+CLEAN IMPLEMENTATION after structural remediation.

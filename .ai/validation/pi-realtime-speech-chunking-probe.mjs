@@ -8,6 +8,8 @@ import { join } from "node:path";
 
 const source = readFileSync(".pi/extensions/pi-realtime/domain/speech-chunking.ts", "utf8");
 assert.match(source, /function chunkBackendUpdateSpeech/);
+assert.match(source, /function chunkRealtimePushSpeech/);
+assert.match(source, /resolveRealtimeBehaviorProfile/);
 assert.match(source, /COMMON_ABBREVIATIONS/);
 assert.match(source, /isProtectedPeriod/);
 assert.match(source, /splitByLines/);

@@ -1,5 +1,7 @@
 import type { RealtimeState } from "./types";
 
+export { aggregateUsage, renderUsageSummary } from "./usage";
+
 export function renderWidget(state: RealtimeState): string[] {
 	const sessions = [...state.sessions.values()];
 	if (sessions.length === 0) return ["pi-realtime", "No realtime provider sessions."];

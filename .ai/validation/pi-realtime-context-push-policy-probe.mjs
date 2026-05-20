@@ -62,10 +62,9 @@ assert.match(providerTypes, /ToolResultResponsePolicy = "none" \| "continue" \| 
 assert.match(providerTypes, /pushContext\(input: RealtimeContextPushRequest\)/);
 
 assert.match(service, /pushRealtimeContext/);
-assert.match(service, /resolveRealtimeBehaviorProfile/);
-assert.match(service, /chunkBackendUpdateSpeech/);
-assert.match(service, /function shouldChunkPush/);
-assert.match(service, /function speechChunksForPush/);
+assert.match(service, /chunkRealtimePushSpeech/);
+assert.doesNotMatch(service, /resolveRealtimeBehaviorProfile/);
+assert.doesNotMatch(service, /chunkBackendUpdateSpeech/);
 assert.match(service, /function chunkRequest/);
 assert.match(service, /function renderChunkedPushResult/);
 assert.match(service, /for \(const chunk of chunks\)/);

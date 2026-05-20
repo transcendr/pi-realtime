@@ -2,20 +2,18 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { createAudioManager, type AudioManager, type AudioManagerErrorKind } from "./audio-manager";
 import { configChanged, contextPacketSent, nextProviderSessionId, primaryChanged, providerEventObserved, sessionStarted, sessionStopped, usageObserved, usageReset, voiceToolCallReceived, voiceToolResultSent } from "./events";
 import { createDebugTraceRegistry, describeProviderEvent } from "./debug-trace";
-import { resolveRealtimeBehaviorProfile } from "./domain/behavior-profiles";
 import { interactionMode, toolSurfaceFor } from "./domain/interaction-modes";
-import { chunkBackendUpdateSpeech, type SpeechChunk } from "./domain/speech-chunking";
+import { chunkRealtimePushSpeech, type SpeechChunk } from "./domain/speech-chunking";
 import { routeTranscriptToInstruction, type TranscriptRouteDecision, type UserTranscriptEvent } from "./domain/transcript-routing";
 import { buildCitationPacket, buildStatePacket, buildToolSurfacePacket, nextContextRevision } from "./state-packets";
 import type { ControlPlane } from "./control-plane";
 import type { FakeRealtimeProviderAdapter } from "./providers/fake";
 import { createDefaultProviderRuntimeRegistry, type ProviderRuntimeRegistry } from "./providers/runtime";
 import type { ProviderEventSink, RealtimeContextPushRequest, RealtimeProviderAdapter, ToolResultResponsePolicy } from "./providers/types";
-import type { CitationDeck, ContextPacket, NormalizedProviderEvent, ProviderDeliveryReceipt, ProviderKind, ProviderMediaMode, ProviderPreferences, ProviderSessionId, RealtimeBehaviorProfile, RealtimeContextPushInput, RealtimeInteractionModeId, RealtimeState, VoiceInstructionInput, VoiceInstructionReceipt, VoiceToolCallRecord, VoiceToolName, VoiceToolResultRecord, VoiceToolSurface } from "./types";
+import type { CitationDeck, ContextPacket, NormalizedProviderEvent, ProviderDeliveryReceipt, ProviderKind, ProviderMediaMode, ProviderPreferences, ProviderSessionId, RealtimeContextPushInput, RealtimeInteractionModeId, RealtimeState, VoiceInstructionInput, VoiceInstructionReceipt, VoiceToolCallRecord, VoiceToolName, VoiceToolResultRecord, VoiceToolSurface } from "./types";
 import type { Store } from "./store";
 import { executeVoiceTool } from "./tools/realtime";
-import { aggregateUsage, renderUsageSummary } from "./usage";
-import { renderStatusText } from "./view";
+import { aggregateUsage, renderStatusText, renderUsageSummary } from "./view";
 export type Service = {
 	refresh(ctx: ExtensionContext): void;
 	state(): RealtimeState;
@@ -122,8 +120,7 @@ class RealtimeService implements Service {
 		if (!adapter) return `Realtime session ${providerSessionId} is not currently live; the realtime update was not sent. Do not retry realtime_send_* tools for this target until a new realtime active-session context message arrives or realtime_status reports target live: yes.`;
 		const session = this.requireSession(providerSessionId);
 		const runtime = this.requireProviderRuntime(session.provider);
-		const profile = resolveRealtimeBehaviorProfile({ providerProfile: runtime.behaviorProfileForModel?.(session.model), interactionMode: session.interactionMode });
-		const chunks = speechChunksForPush(input, text, profile);
+		const chunks = chunkRealtimePushSpeech({ push: input, text, providerProfile: runtime.behaviorProfileForModel?.(session.model), interactionMode: session.interactionMode });
 		let lastMessage = "Realtime context push accepted";
 		for (const chunk of chunks) {
 			const request = chunkRequest(input, chunk);
@@ -438,17 +435,6 @@ class RealtimeService implements Service {
 		if (!adapter) throw new Error(`No live fake provider adapter for ${providerSessionId}`);
 		return adapter;
 	}
-}
-
-function shouldChunkPush(input: RealtimeContextPushInput, profile: RealtimeBehaviorProfile): boolean {
-	return input.mode === "request_spoken_response"
-		&& input.kind === "text"
-		&& profile.backendUpdateSpeech.chunking.enabled;
-}
-
-function speechChunksForPush(input: RealtimeContextPushInput, text: string, profile: RealtimeBehaviorProfile): SpeechChunk[] {
-	if (!shouldChunkPush(input, profile)) return [{ text, index: 1, count: 1, originalTextLength: text.length }];
-	return chunkBackendUpdateSpeech({ text, policy: profile.backendUpdateSpeech.chunking });
 }
 
 function chunkRequest(input: RealtimeContextPushInput, chunk: SpeechChunk): RealtimeContextPushRequest {

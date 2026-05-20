@@ -1,4 +1,5 @@
-import type { BackendUpdateSpeechChunkingPolicy } from "../types";
+import { resolveRealtimeBehaviorProfile } from "./behavior-profiles";
+import type { BackendUpdateSpeechChunkingPolicy, RealtimeBehaviorProfileFragment, RealtimeContextPushInput, RealtimeInteractionModeId } from "../types";
 
 export type SpeechChunk = {
 	text: string;
@@ -18,6 +19,20 @@ export function chunkBackendUpdateSpeech(input: {
 	if (!input.policy.enabled || text.length <= maxChars) return buildChunks([text], text.length);
 	const units = speechUnitsFor(text, maxChars).flatMap((unit) => splitOverlongUnit(unit, maxChars));
 	return buildChunks(packUnits(units, maxChars), text.length);
+}
+
+export function chunkRealtimePushSpeech(input: {
+	push: RealtimeContextPushInput;
+	text: string;
+	providerProfile?: RealtimeBehaviorProfileFragment;
+	interactionMode: RealtimeInteractionModeId;
+}): SpeechChunk[] {
+	const profile = resolveRealtimeBehaviorProfile({ providerProfile: input.providerProfile, interactionMode: input.interactionMode });
+	const chunking = profile.backendUpdateSpeech.chunking;
+	if (input.push.mode !== "request_spoken_response" || input.push.kind !== "text" || !chunking.enabled) {
+		return [{ text: input.text, index: 1, count: 1, originalTextLength: input.text.length }];
+	}
+	return chunkBackendUpdateSpeech({ text: input.text, policy: chunking });
 }
 
 function speechUnitsFor(text: string, maxChars: number): string[] {
