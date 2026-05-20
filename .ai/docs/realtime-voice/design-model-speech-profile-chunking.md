@@ -1107,3 +1107,39 @@ Review:
 - Deslop hard gate passed with zero reported error-severity findings.
 
 CLEAN IMPLEMENTATION after structural remediation.
+
+### Phase G — live OpenAI/WebRTC proof
+
+Interrogate:
+
+1. Can local gates prove OpenAI/WebRTC chunk burst ordering? No. Provider-managed realtime response ordering is a live semantics question.
+2. Is there an active realtime session available for live proof? No. `realtime_status` reported 0 active provider sessions and no live realtime send target.
+3. Can I perform the barge-in test without user/browser/microphone participation? No. The required chunk-2 interruption test depends on real user audio and provider VAD/WebRTC behavior.
+4. What did the user choose after blocker escalation? The user chose to skip live Phase G for now and close as locally validated.
+5. What can be honestly claimed after this phase? The implementation is locally validated through quality gates, but live OpenAI/WebRTC chunk ordering, barge-in cancellation, and `gpt-realtime-2` live availability remain deferred proof items.
+
+Progress notes and unexpected outcomes:
+
+- Checked `realtime_status`; no live session was active.
+- Paused the goal once under the external-blocker protocol and invoked `ask_user` with options.
+- User selected: “Skip live Phase G for now and close as locally validated.”
+
+Deviations or trade-offs:
+
+- Phase G live proof is explicitly deferred by user choice. This is not treated as proof of live behavior.
+- The implementation may close locally only if final audit and clean-worktree criteria pass; live proof remains a documented follow-up risk.
+
+Remaining risks or concerns:
+
+- Unknown whether burst chunked `response.create` events always play in order over OpenAI WebRTC.
+- Unknown whether queued future chunks stop after user barge-in during chunk 2+.
+- Unknown whether `gpt-realtime-2` is available and behaves as expected in the current account/session.
+
+Validation:
+
+- `realtime_status` showed no active realtime session.
+- No live OpenAI/WebRTC validation was performed.
+
+Review:
+
+- The code does not claim or encode assumptions about live burst ordering beyond queue-first behavior; the design and ledger keep live behavior as deferred evidence.
