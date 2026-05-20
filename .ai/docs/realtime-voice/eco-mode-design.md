@@ -930,3 +930,27 @@ Review:
 - The mode projection path is now easier to audit in service and WebRTC bridge code.
 
 CLEAN IMPLEMENTATION.
+
+### Final audit — top-to-bottom implementation review
+
+Audit scope:
+
+- Re-read the final SWE design requirements for mode policy, transcript routing, provider projection, OpenAI response suppression, `/realtime text`, validation, and live-proof boundaries.
+- Reviewed changed code seams: `types.ts`, `events.ts`, `domain/*`, `service.ts`, `control-plane.ts`, `commands.ts`, `prompt.ts`, OpenAI provider/WebRTC files, README, and validation probes.
+- Re-ran the full quality gate after the final readability cleanup.
+
+Findings:
+
+- Spec adherence: PASS. Agent mode preserves existing request-tool flow; eco mode uses central policy, no request tools, suppressed transcript model responses, direct final transcript routing, and rejected unexpected tool calls.
+- Architecture/style: PASS. Domain modules are pure; providers own provider payloads; browser helper only consumes behavior config and emits provider events; service owns domain routing and Pi instruction submission.
+- Deslop/code style: PASS. No double casts remain, dense wiring was split for reviewability, and advisory scan leads were reviewed. Remaining cast is isolated at the OpenAI/WebRTC event-record boundary.
+- Validation: PASS. `npm run gates:quality` passed after the final cleanup.
+- Worktree: checked clean before closeout except for this ledger-only final audit entry.
+
+Risks / live-proof items:
+
+- OpenAI WebRTC `response.create` with `conversation: "none"` remains live-unproven and must be validated before claiming speech isolation behavior.
+- Provider-side `conversation.item.delete` is intentionally not implemented until targeted live proof confirms transcript, interruption, usage, and stability behavior.
+- Cost impact remains best-effort and should be measured with live usage telemetry rather than inferred from local gates.
+
+No remediation was required during the final audit.
