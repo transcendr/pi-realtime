@@ -23,6 +23,27 @@ export type TranscriptRetentionPolicy = "retain" | "delete_after_transcript";
 export type ToolChoicePolicy = "auto" | "none";
 export type BackendSpeechContext = "default_conversation" | "isolated_update";
 export type VoiceInstructionSource = "model_tool" | "direct_transcript" | "manual_text";
+export type SpeechChunkSplitStrategy = "sentence";
+
+export type BackendUpdateSpeechChunkingPolicy = {
+	enabled: boolean;
+	maxChars: number;
+	splitStrategy: SpeechChunkSplitStrategy;
+};
+
+export type BackendUpdateSpeechPolicy = {
+	chunking: BackendUpdateSpeechChunkingPolicy;
+};
+
+export type RealtimeBehaviorProfile = {
+	backendUpdateSpeech: BackendUpdateSpeechPolicy;
+};
+
+export type RealtimeBehaviorProfileFragment = {
+	backendUpdateSpeech?: {
+		chunking?: Partial<BackendUpdateSpeechChunkingPolicy>;
+	};
+};
 
 export type TranscriptHandlingPolicy = {
 	response: TranscriptResponsePolicy;

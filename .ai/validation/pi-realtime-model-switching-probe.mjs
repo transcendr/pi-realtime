@@ -6,14 +6,24 @@ const types = readFileSync(".pi/extensions/pi-realtime/types.ts", "utf8");
 const runtimeTypes = readFileSync(".pi/extensions/pi-realtime/providers/runtime-types.ts", "utf8");
 const openAIModelProfiles = readFileSync(".pi/extensions/pi-realtime/providers/openai/model-profiles.ts", "utf8");
 const openAIRuntime = readFileSync(".pi/extensions/pi-realtime/providers/openai/runtime.ts", "utf8");
+const behaviorProfiles = readFileSync(".pi/extensions/pi-realtime/domain/behavior-profiles.ts", "utf8");
 const service = readFileSync(".pi/extensions/pi-realtime/service.ts", "utf8");
 const commands = readFileSync(".pi/extensions/pi-realtime/commands.ts", "utf8");
 
 assert.match(types, /type ProviderPreferences = \{[\s\S]*autoMediaMode\?: ProviderMediaMode;[\s\S]*defaultModel\?: string;[\s\S]*\}/);
 assert.match(runtimeTypes, /availableModels\?\(\): readonly string\[\]/);
+assert.match(runtimeTypes, /behaviorProfileForModel\?\(model: string\): RealtimeBehaviorProfileFragment/);
 assert.match(openAIModelProfiles, /OPENAI_REALTIME_MODELS = \["gpt-realtime-mini", "gpt-realtime-2"\] as const/);
-assert.match(openAIRuntime, /import \{ OPENAI_REALTIME_MODELS \} from "\.\/model-profiles"/);
+assert.match(openAIModelProfiles, /function openAIBehaviorProfileForModel\(model: string\): RealtimeBehaviorProfileFragment/);
+assert.match(openAIModelProfiles, /model === "gpt-realtime-mini"[\s\S]*enabled: true[\s\S]*maxChars: 800[\s\S]*splitStrategy: "sentence"/);
+assert.match(openAIModelProfiles, /return \{\};/);
+assert.match(openAIRuntime, /import \{ OPENAI_REALTIME_MODELS, openAIBehaviorProfileForModel \} from "\.\/model-profiles"/);
 assert.match(openAIRuntime, /availableModels\(\) \{ return OPENAI_REALTIME_MODELS; \}/);
+assert.match(openAIRuntime, /behaviorProfileForModel: openAIBehaviorProfileForModel/);
+assert.match(behaviorProfiles, /DEFAULT_BEHAVIOR_PROFILE: RealtimeBehaviorProfile/);
+assert.match(behaviorProfiles, /enabled: false/);
+assert.match(behaviorProfiles, /resolveRealtimeBehaviorProfile/);
+assert.match(behaviorProfiles, /\.\.\.DEFAULT_BEHAVIOR_PROFILE\.backendUpdateSpeech\.chunking/);
 
 assert.match(service, /defaultModelFor\(provider: ProviderKind\): string \{ return this\.providerPreference\(provider\)\.defaultModel \?\? this\.requireProviderRuntime\(provider\)\.defaultModel\(\); \}/);
 assert.match(service, /availableModelsFor\(provider: ProviderKind\): readonly string\[\]/);
@@ -29,5 +39,6 @@ assert.match(commands, /function openAIModel\(tokens: string\[], ctx: ExtensionC
 assert.match(commands, /Current OpenAI realtime default model/);
 assert.match(commands, /service\.setDefaultModel\("openai", model\)/);
 assert.match(commands, /const model = valueAfter\(tokens, "--model"\) \?\? service\.defaultModelFor\(provider\)/);
+assert.doesNotMatch(service, /model === "gpt-realtime-mini"/);
 
-console.log("PASS pi-realtime OpenAI model switching probe");
+console.log("PASS pi-realtime OpenAI model switching/profile probe");

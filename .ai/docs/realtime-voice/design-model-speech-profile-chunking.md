@@ -894,3 +894,48 @@ Review:
 - Command parsing remains a thin user-facing layer over service methods.
 
 CLEAN IMPLEMENTATION.
+
+### Phase B — provider-owned behavior profiles
+
+Interrogate:
+
+1. Where should behavior-profile defaults live? In a pure domain helper, `domain/behavior-profiles.ts`, so service can later resolve complete behavior values without knowing provider model ids.
+2. Where should model-specific profile fragments live? Under `providers/openai/model-profiles.ts`, alongside the OpenAI model list, because `gpt-realtime-mini` and `gpt-realtime-2` are provider-specific identities.
+3. How should the provider runtime expose profile behavior? Through optional `behaviorProfileForModel?(model)` on `ProviderRuntime`, matching the existing runtime capability pattern.
+4. What should `gpt-realtime-2` do initially? Return the default empty fragment, leaving chunking disabled until live evidence says otherwise.
+5. How do we prevent service-level model branching? Validation asserts service does not contain `model === "gpt-realtime-mini"`; only the OpenAI provider profile module contains the model-specific branch.
+
+Progress notes and unexpected outcomes:
+
+- Added behavior profile and fragment types to `types.ts`.
+- Added `domain/behavior-profiles.ts` with disabled default chunking and explicit nested fragment merge.
+- Added `behaviorProfileForModel?` to `ProviderRuntime`.
+- Extended OpenAI model profiles so mini enables sentence chunking at `maxChars: 800`; realtime-2 and unknown models use defaults.
+- Wired the OpenAI runtime profile hook.
+- Extended the model switching/profile validation probe.
+- Removed an unnecessary unused-property marker during review; the resolver keeps `interactionMode` in its input contract for future mode-specific profile layering without adding current mode-specific behavior.
+
+Deviations or trade-offs:
+
+- The default resolver accepts `interactionMode` but does not use it yet. This is intentional because the current design reserves mode-specific profile layering for future behavior while keeping the initial implementation model/provider-driven.
+- Profile validation remains deterministic and source-contract based; live model behavior is deferred to Phase G.
+
+Remaining risks or concerns:
+
+- Behavior profiles are not consumed by service until Phase D.
+- Mini's `maxChars: 800` is an initial mitigation value and must be live-tuned if evidence shows it is too high or unnecessarily low.
+
+Validation:
+
+- `npm run gates:typecheck` passed.
+- `node .ai/validation/pi-realtime-model-switching-probe.mjs` passed.
+- `npm run gates:validation` passed.
+- Targeted scan found no `as any`, `as unknown as`, `TODO`, or `FIXME` in the touched profile/runtime files.
+
+Review:
+
+- Provider-specific identity remains isolated at the provider edge.
+- Domain profile resolution is pure and provider-neutral.
+- No service/domain OpenAI SDK or model-name leakage was introduced.
+
+CLEAN IMPLEMENTATION.

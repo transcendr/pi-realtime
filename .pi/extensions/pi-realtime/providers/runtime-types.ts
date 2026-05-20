@@ -1,5 +1,5 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { ContextPacket, ProviderInteractionConfig, ProviderKind, ProviderMediaMode, ProviderPreferences, ProviderSessionId, VoiceSessionRecord, VoiceToolSurface } from "../types";
+import type { ContextPacket, ProviderInteractionConfig, ProviderKind, ProviderMediaMode, ProviderPreferences, ProviderSessionId, RealtimeBehaviorProfileFragment, VoiceSessionRecord, VoiceToolSurface } from "../types";
 import type { ProviderEventSink, RealtimeProviderAdapter } from "./types";
 
 export type ProviderAdapterInput = {
@@ -30,6 +30,7 @@ export type ProviderRuntime = {
 	provider: ProviderKind;
 	defaultModel(): string;
 	availableModels?(): readonly string[];
+	behaviorProfileForModel?(model: string): RealtimeBehaviorProfileFragment;
 	assertCredentials(): void;
 	createAdapter(input: ProviderAdapterInput): RealtimeProviderAdapter;
 	media?: Partial<Record<ProviderMediaMode, ProviderMediaRuntime>>;

@@ -1,7 +1,7 @@
 import type { DebugTraceRegistry } from "../../debug-trace";
 import { createWebRTCHelperServer, openHelperUrl, type WebRTCHelperServer } from "../../media/webrtc-helper/server";
 import { createOpenAIRealtimeProvider, hasOpenAIRealtimeCredentials } from "./index";
-import { OPENAI_REALTIME_MODELS } from "./model-profiles";
+import { OPENAI_REALTIME_MODELS, openAIBehaviorProfileForModel } from "./model-profiles";
 import { summarizeOpenAIRealtimeAudioConfig } from "./session-config";
 import { createOpenAIWebRTCClientSecret, hasOpenAIWebRTCCredentials } from "./webrtc";
 import { createOpenAIWebRTCBridgeAdapter } from "./webrtc-bridge";
@@ -13,6 +13,7 @@ export function createOpenAIProviderRuntime(debugTraces: DebugTraceRegistry): Pr
 		provider: "openai",
 		defaultModel() { return "gpt-realtime-mini"; },
 		availableModels() { return OPENAI_REALTIME_MODELS; },
+		behaviorProfileForModel: openAIBehaviorProfileForModel,
 		assertCredentials() {
 			if (!hasOpenAIRealtimeCredentials()) throw new Error("OPENAI_API_KEY is required to start an OpenAI realtime session.");
 		},
