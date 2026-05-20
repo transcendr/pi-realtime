@@ -115,6 +115,22 @@ Raw microphone/playback commands still exist for troubleshooting and low-level s
 
 The recommended default is **eco mode**:
 
+```text
+You speak
+   ↓
+OpenAI Realtime + browser/WebRTC
+live audio, transcription, interruption, playback
+   ↓ final transcript
+Pi backend
+repo work, commands, files, reasoning
+   ↓ acknowledgements, status, replies
+OpenAI Realtime voice
+   ↓
+You hear Pi's updates
+```
+
+In practice:
+
 1. You speak naturally.
 2. OpenAI Realtime handles live audio, transcription, interruption, and playback.
 3. Pi receives the final transcript and does the project work.
