@@ -939,3 +939,47 @@ Review:
 - No service/domain OpenAI SDK or model-name leakage was introduced.
 
 CLEAN IMPLEMENTATION.
+
+### Phase C — sentence-aware chunking domain module
+
+Interrogate:
+
+1. How can chunks preserve exact content while still splitting naturally? The chunker keeps units as original substrings, attaches separators to adjacent units, and validates by joining chunk text back to the trimmed original.
+2. How do we avoid naive punctuation splitting? Sentence detection uses boundary scanning and protects common abbreviations, URL-like tokens, decimal/version punctuation, paths/extensions by requiring whitespace after candidate sentence punctuation and by rejecting protected periods.
+3. How do non-sentence payloads respect `maxChars`? Structured/log-ish blocks, list blocks, and multi-line oversized blocks split by line first, then syntax delimiters, then hard character splits.
+4. What metadata invariants matter for service fan-out? Chunks are non-empty, 1-based indexed, carry total count, and carry the original trimmed text length.
+5. How can this be validated without wiring service yet? The validation probe compiles the TypeScript domain module into a temporary directory and exercises the exported chunker directly with sentence, technical token, list, stack trace, syntax delimiter, and hard-split cases.
+
+Progress notes and unexpected outcomes:
+
+- Added `domain/speech-chunking.ts` with `SpeechChunk` and `chunkBackendUpdateSpeech`.
+- Implemented paragraph/list/structured/log-ish unit extraction.
+- Implemented protected sentence-boundary scanning for technical punctuation.
+- Implemented max-length enforcement through line, syntax delimiter, and hard-split fallbacks.
+- Added `.ai/validation/pi-realtime-speech-chunking-probe.mjs`.
+- The first probe compile invocation needed `--ignoreConfig` because TypeScript 6 rejects direct file compilation when a project config exists unless explicitly ignored.
+- The second probe iteration corrected the compiled output path to TypeScript's emitted `domain/speech-chunking.js` location.
+
+Deviations or trade-offs:
+
+- The chunker does not import a third-party tokenizer. This avoids adding a dependency for a constrained domain problem and keeps the function deterministic and inspectable.
+- Sentence splitting intentionally prefers under-splitting over fragmenting technical tokens; overlong under-split units are still constrained by line/syntax/hard fallback.
+
+Remaining risks or concerns:
+
+- Natural-language sentence boundary detection is still heuristic. The invariant that every chunk respects `maxChars` is more important for this mitigation than perfect linguistic segmentation.
+- Service fan-out and fake-provider integration are still pending Phase D.
+
+Validation:
+
+- `npm run gates:typecheck` passed.
+- `node .ai/validation/pi-realtime-speech-chunking-probe.mjs` passed.
+- `npm run gates:validation` passed.
+- Targeted review found no TypeScript escape hatches or TODO/FIXME markers in the chunking domain module.
+
+Review:
+
+- The chunking module is pure domain logic with no provider, Pi, browser, or service dependencies.
+- The implementation keeps exact text preservation and max-length enforcement as explicit invariants.
+
+CLEAN IMPLEMENTATION.
