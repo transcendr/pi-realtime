@@ -895,3 +895,38 @@ Review:
 - README and code now align with the design's non-goal that eco mode preserves Realtime STT/VAD/WebRTC while changing routing and capability surfaces.
 
 CLEAN IMPLEMENTATION.
+
+### Iteration 5 — Readability review and advisory scan response
+
+Interrogate:
+
+1. Did advisory deslop scanning find eco-mode-introduced issues? It found two optional-call leads; one in `service.ts` is a pre-existing provider-warning optional callback shape, and one in `audio-manager.ts` is outside this feature path.
+2. Are long wiring calls making the new mode seam hard to review? Yes; service session connect and WebRTC helper registration were dense after adding interaction config.
+3. Can readability improve without changing behavior? Yes; split the connect/register object literals across lines and extracted `toolSurfaceForSession`.
+4. Are any remaining casts too broad? The only new cast is isolated at the OpenAI/WebRTC browser record boundary; no double casts remain.
+5. Are validations still green after readability cleanup? Typecheck passes; full quality was already green and will be re-run in the final audit.
+
+Progress:
+
+- Ran `npm run scans:deslop` and reviewed both advisory leads.
+- Refactored dense session connect and helper registration object literals for readability.
+- Extracted `toolSurfaceForSession` to avoid a long default parameter expression.
+
+Unexpected outcomes:
+
+- Advisory leads were not introduced by the eco-mode routing code and did not require remediation for this change.
+
+Deviations/trade-offs:
+
+- No behavior trade-offs. This iteration is pure readability cleanup.
+
+Validation:
+
+- `npm run scans:deslop` passed with two reviewed lead-level findings.
+- `npm run gates:typecheck` passed.
+
+Review:
+
+- The mode projection path is now easier to audit in service and WebRTC bridge code.
+
+CLEAN IMPLEMENTATION.

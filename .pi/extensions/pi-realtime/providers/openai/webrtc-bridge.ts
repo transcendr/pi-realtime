@@ -18,7 +18,20 @@ export class OpenAIWebRTCBridgeAdapter implements RealtimeProviderAdapter {
 	async connect(config: ProviderConnectConfig, sink: ProviderEventSink): Promise<void> {
 		this.sink = sink;
 		this.interaction = config.interaction;
-		this.helper.registerSession({ provider: config.provider, providerSessionId: config.providerSessionId, model: config.model, instructions: config.systemPrompt, toolSurface: config.toolSurface, initialContext: config.initialContext, interaction: config.interaction, createClientSecret: this.createClientSecret, trace: this.trace, normalizeUsageEvent: (input) => input.source === "response" ? usageFromOpenAIResponseDone(input.realtimeEvent, { providerSessionId: this.providerSessionId, model: config.model, providerEventId: input.providerEventId, at: input.at }) : usageFromOpenAIInputTranscription(input.realtimeEvent, { providerSessionId: this.providerSessionId, model: config.model, providerEventId: input.providerEventId, at: input.at }) }, { onProviderEvent: (event) => sink.onProviderEvent(event) });
+		this.helper.registerSession({
+			provider: config.provider,
+			providerSessionId: config.providerSessionId,
+			model: config.model,
+			instructions: config.systemPrompt,
+			toolSurface: config.toolSurface,
+			initialContext: config.initialContext,
+			interaction: config.interaction,
+			createClientSecret: this.createClientSecret,
+			trace: this.trace,
+			normalizeUsageEvent: (input) => input.source === "response"
+				? usageFromOpenAIResponseDone(input.realtimeEvent, { providerSessionId: this.providerSessionId, model: config.model, providerEventId: input.providerEventId, at: input.at })
+				: usageFromOpenAIInputTranscription(input.realtimeEvent, { providerSessionId: this.providerSessionId, model: config.model, providerEventId: input.providerEventId, at: input.at }),
+		}, { onProviderEvent: (event) => sink.onProviderEvent(event) });
 		sink.onProviderEvent({ type: "connected", provider: "openai", providerSessionId: this.providerSessionId, localSeq: Date.now(), at: Date.now() });
 	}
 

@@ -210,7 +210,17 @@ class RealtimeService implements Service {
 		const packets = this.buildPackets(ctx, providerSessionId, mode.toolSurface);
 		const adapter = runtime.createAdapter({ providerSessionId });
 		this.setAdapter(providerSessionId, adapter);
-		await adapter.connect({ providerSessionId, provider: input.provider, model: input.model, personaId, systemPrompt: mode.systemPrompt(mode.toolSurface), toolSurface: mode.toolSurface, initialContext: packets[0], capabilities: { preferPassiveContext: input.provider === "fake", preferSemanticVad: input.provider !== "fake" }, interaction: mode.providerInteraction }, this.providerSink);
+		await adapter.connect({
+			providerSessionId,
+			provider: input.provider,
+			model: input.model,
+			personaId,
+			systemPrompt: mode.systemPrompt(mode.toolSurface),
+			toolSurface: mode.toolSurface,
+			initialContext: packets[0],
+			capabilities: { preferPassiveContext: input.provider === "fake", preferSemanticVad: input.provider !== "fake" },
+			interaction: mode.providerInteraction,
+		}, this.providerSink);
 		for (const packet of input.provider === "fake" ? packets : packets.slice(1)) await this.recordContextPacket(providerSessionId, packet, adapter);
 		const session = this.store.state().sessions.get(providerSessionId);
 		if (session) this.controlPlane.sendSessionAwareness(session, true);
@@ -229,7 +239,7 @@ class RealtimeService implements Service {
 		if (session) this.controlPlane.sendSessionAwareness(session, false);
 	}
 
-	buildPackets(ctx: ExtensionContext, providerSessionId: ProviderSessionId, surface = toolSurfaceFor(this.store.state().sessions.get(providerSessionId)?.interactionMode ?? this.defaultInteractionMode())): ContextPacket[] {
+	buildPackets(ctx: ExtensionContext, providerSessionId: ProviderSessionId, surface = this.toolSurfaceForSession(providerSessionId)): ContextPacket[] {
 		const state = this.store.state();
 		const target = this.controlPlane.currentTarget(ctx);
 		const citationDeck = this.controlPlane.observeCitations(ctx);
@@ -291,6 +301,10 @@ class RealtimeService implements Service {
 	private async stopLocalMedia(providerSessionId: ProviderSessionId): Promise<void> {
 		await this.stopMicrophone(providerSessionId);
 		await this.stopAudioPlayback(providerSessionId);
+	}
+
+	private toolSurfaceForSession(providerSessionId: ProviderSessionId): VoiceToolSurface {
+		return toolSurfaceFor(this.store.state().sessions.get(providerSessionId)?.interactionMode ?? this.defaultInteractionMode());
 	}
 
 	private async recordContextPacket(providerSessionId: ProviderSessionId, packet: ContextPacket, adapter: RealtimeProviderAdapter): Promise<void> {
