@@ -784,3 +784,40 @@ Review:
 - Checked no prompt-only control for eco: eco removes tools and suppresses transcript model response creation.
 
 CLEAN IMPLEMENTATION for the implemented deterministic scope. Remaining live-provider semantics are documented as proof requirements, not claimed complete.
+
+### Iteration 2 — Deterministic validation probes and review hardening
+
+Interrogate:
+
+1. Which deterministic checks prove the new mode seam without live provider access? Static probes now assert the policy table, provider projection fields, transcript route decisions, and direct-transcript steering.
+2. Which existing probes became stale because provider payload construction moved? Context-push and packet probes were updated to inspect `providers/openai/responses.ts` and source-aware delivery rather than the old inline payload strings.
+3. Is the domain policy over-abstracted? The mode module remains a small typed policy table plus lookup/projection helpers, not a strategy hierarchy.
+4. Did the implementation introduce duplicated or speculative surfaces? Removed duplicate `defaultVoiceToolSurface()` construction in the policy module; no future modes were implemented.
+5. Are live-provider semantics separated from deterministic proof? Yes. Validation proves local contracts only; isolated OpenAI speech and item deletion remain live-proof items.
+
+Progress:
+
+- Added `pi-realtime-interaction-modes-probe.mjs`.
+- Added `pi-realtime-transcript-routing-probe.mjs`.
+- Updated state, context-push, and packet probes for mode/source/response-helper seams.
+- Re-ran typecheck and validation after probe updates.
+
+Unexpected outcomes:
+
+- Existing static probes intentionally caught moved responsibility from bridge/raw provider files into `providers/openai/responses.ts`. Probe expectations were updated to follow the new ownership rather than re-inline provider payload code.
+
+Deviations/trade-offs:
+
+- No behavioral trade-off. This iteration was validation and cleanup only.
+
+Validation:
+
+- `npm run gates:validation` passed.
+- `npm run gates:typecheck` passed.
+
+Review:
+
+- Rechecked deslop concerns around duplicated policy construction and removed it.
+- Confirmed the probes assert capability surface and event-routing contracts, not prompt wording alone.
+
+CLEAN IMPLEMENTATION.

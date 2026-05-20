@@ -12,7 +12,9 @@ assert.doesNotMatch(promptSource, /pi_state_snapshot|pi_send_instruction|pi_wait
 assert.match(promptSource, /Use the request tool/);
 assert.match(controlPlaneSource, /delivery === "immediate"/);
 assert.match(controlPlaneSource, /deliverAs: delivery/);
-assert.match(controlPlaneSource, /deliveryHint === "progress"\) return "steer"/);
+assert.match(controlPlaneSource, /deliveryHint === "progress"/);
+assert.match(controlPlaneSource, /source === "direct_transcript"/);
+assert.match(controlPlaneSource, /return "steer"/);
 
 function nextContextRevision(state, providerSessionId, channel) {
   return (state.contextRevisions.get(providerSessionId)?.[channel] ?? 0) + 1;

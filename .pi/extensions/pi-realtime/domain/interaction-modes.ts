@@ -1,17 +1,18 @@
 import { defaultVoiceToolSurface, voiceSpeechRendererPrompt, voiceSystemPrompt } from "../prompt";
 import type { ProviderInteractionConfig, RealtimeInteractionMode, RealtimeInteractionModeId, VoiceToolSurface } from "../types";
 
+const REQUEST_TOOL_SURFACE = defaultVoiceToolSurface();
 const EMPTY_TOOL_SURFACE: VoiceToolSurface = { revision: 1, tools: [] };
 
 const AGENT_MODE: RealtimeInteractionMode = {
 	id: "agent",
-	toolSurface: defaultVoiceToolSurface(),
+	toolSurface: REQUEST_TOOL_SURFACE,
 	systemPrompt: voiceSystemPrompt,
 	acceptModelToolCalls: true,
 	initialContextPolicy: "full",
 	providerInteraction: {
 		mode: "agent",
-		tools: defaultVoiceToolSurface().tools,
+		tools: REQUEST_TOOL_SURFACE.tools,
 		toolChoice: "auto",
 		transcriptHandling: { response: "model", backendRoute: "none", retention: "retain" },
 		backendSpeechContext: "default_conversation",
