@@ -47,9 +47,9 @@ export class OpenAIWebRTCBridgeAdapter implements RealtimeProviderAdapter {
 
 	async pushContext(input: RealtimeContextPushRequest): Promise<ProviderDeliveryReceipt> {
 		const wantsResponse = input.mode === "request_spoken_response";
-		if (!wantsResponse || this.interaction.backendSpeechContext !== "isolated_update") this.enqueue(backendUpdateItemEvent(input) as unknown as Record<string, unknown>);
+		if (!wantsResponse || this.interaction.backendSpeechContext !== "isolated_update") this.enqueue(realtimeClientEventRecord(backendUpdateItemEvent(input)));
 		this.trace?.write({ source: "provider_adapter", direction: wantsResponse ? "context_push_response_requested" : "context_push_context_only", reason: "pi_context_push", mode: input.mode, updateKind: input.kind, pushSource: input.source, summary: input.summary, textLength: input.text.length });
-		if (wantsResponse) this.enqueue(backendUpdateResponseEvent(input, this.interaction, ["audio"]) as unknown as Record<string, unknown>);
+		if (wantsResponse) this.enqueue(realtimeClientEventRecord(backendUpdateResponseEvent(input, this.interaction, ["audio"])));
 		return { status: "delivered", message: wantsResponse ? "backend update queued and spoken response requested" : "backend update queued without response" };
 	}
 
@@ -69,7 +69,7 @@ export class OpenAIWebRTCBridgeAdapter implements RealtimeProviderAdapter {
 
 	async requestResponse(request: VoiceResponseRequest): Promise<void> {
 		this.trace?.write({ source: "provider_adapter", direction: "response_create_requested", reason: request.reason });
-		this.enqueue(responseCreateEvent(request, ["audio"]) as unknown as Record<string, unknown>);
+		this.enqueue(realtimeClientEventRecord(responseCreateEvent(request, ["audio"])));
 	}
 
 	private enqueue(event: Record<string, unknown>): void {
@@ -79,5 +79,9 @@ export class OpenAIWebRTCBridgeAdapter implements RealtimeProviderAdapter {
 
 export function createOpenAIWebRTCBridgeAdapter(providerSessionId: ProviderSessionId, helper: WebRTCHelperServer, createClientSecret: () => Promise<unknown>, trace?: DebugTraceRecorder): OpenAIWebRTCBridgeAdapter {
 	return new OpenAIWebRTCBridgeAdapter(providerSessionId, helper, createClientSecret, trace);
+}
+
+function realtimeClientEventRecord(event: object): Record<string, unknown> {
+	return event as Record<string, unknown>;
 }
 

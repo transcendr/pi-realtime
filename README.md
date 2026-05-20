@@ -10,7 +10,7 @@ Realtime voice sessions for [Pi](https://www.npmjs.com/package/@earendil-works/p
 
 `0.1.0` is the first preview release.
 
-It includes a provider-neutral realtime session core, deterministic fake-provider testing, OpenAI Realtime support, browser/WebRTC media helper support, usage telemetry, and Pi-facing realtime send tools for acknowledgements, progress updates, and final responses.
+It includes a provider-neutral realtime session core, deterministic fake-provider testing, OpenAI Realtime support, browser/WebRTC media helper support, usage telemetry, explicit agent/eco interaction modes, and Pi-facing realtime send tools for acknowledgements, progress updates, and final responses.
 
 See the [changelog](CHANGELOG.md) for details.
 
@@ -22,6 +22,7 @@ See the [changelog](CHANGELOG.md) for details.
 - OpenAI Realtime adapter for text, tool calls, raw microphone input, raw audio playback, and response usage telemetry.
 - Optional localhost browser/WebRTC helper for speaker-safe media with browser echo cancellation, noise suppression, and automatic gain control.
 - Pi-to-realtime communication tools for spoken acknowledgements, progress updates, final answers, and active-session status checks.
+- Interaction modes: `agent` for the model-mediated request-tool flow, and `eco` for direct final transcript routing to Pi with no realtime request tools exposed.
 - Durable branch-aware replay of realtime session observations, context packets, tool calls, citation decks, and usage observations.
 - Compact status/widget rendering for active realtime sessions.
 - Provider-scoped tool result routing so concurrent sessions do not receive each other’s responses.
@@ -62,8 +63,9 @@ Use `/realtime` to manage realtime sessions from Pi.
 
 ```text
 /realtime status
-/realtime start --provider fake
-/realtime start --provider openai
+/realtime start --provider fake [--mode agent|eco]
+/realtime start --provider openai [--mode agent|eco]
+/realtime mode agent|eco
 /realtime text <message>
 /realtime usage [--session <providerSessionId>] [--details]
 /realtime stop [--session <providerSessionId>]
@@ -74,7 +76,9 @@ Common commands:
 - `/realtime status` — show active sessions and current primary session.
 - `/realtime start --provider fake` — start the deterministic local fake provider.
 - `/realtime start --provider openai` — start an OpenAI Realtime session using `OPENAI_API_KEY`.
-- `/realtime text <message>` — send text to the current primary realtime session.
+- `/realtime start --provider openai --mode eco` — start eco mode: final voice transcripts route directly to Pi; the realtime model only speaks explicit Pi updates.
+- `/realtime mode agent|eco` — set the default interaction mode for future sessions.
+- `/realtime text <message>` — send provider/debug text to the current primary realtime session; this is not converted into a Pi backend request.
 - `/realtime usage --details` — inspect tracked usage observations.
 - `/realtime primary <providerSessionId>` — choose the primary realtime session.
 - `/realtime stop [--session <providerSessionId>]` — stop one session, or the primary session when no session id is provided.
@@ -93,6 +97,15 @@ The fake provider is the safest way to validate Pi integration without provider 
 ```
 
 It exercises transcript events, context packet delivery, voice-derived Pi instruction submission, provider-scoped tool result routing, citation lookup shape, and shutdown cleanup.
+
+## Interaction modes
+
+`pi-realtime` supports two initial interaction modes:
+
+- `agent` — default compatibility mode. User audio reaches the realtime model, and the model can call the `request` tool to ask Pi to do backend work.
+- `eco` — direct transcript mode. OpenAI Realtime still owns WebRTC media, server VAD, barge-in, and input-audio transcription, but final actionable transcripts are routed directly to Pi. The realtime model receives no request tools (`tools: []`, `tool_choice: "none"`) and only speaks explicit Pi updates sent with `realtime_send_ack`, `realtime_send_status`, or `realtime_send_text`.
+
+Eco mode still requires live provider validation for provider-specific speech isolation details such as `response.create` with `conversation: "none"` and provider-side conversation item deletion. Deterministic gates prove local routing and capability-surface contracts only.
 
 ## OpenAI Realtime
 
@@ -185,7 +198,8 @@ npm run scans:deslop
   events.ts                # durable event constructors/replay helpers
   control-plane.ts         # Pi instruction sink and citation observation bridge
   realtime-updates.ts      # Pi-to-realtime spoken update delivery
-  prompt.ts                # voice-agent policy/tool-surface prompt
+  prompt.ts                # voice-agent and speech-renderer prompts
+  domain/                  # pure mode policy and transcript routing helpers
   state-packets.ts         # compact Pi/citation/tool context packets
   usage.ts                 # usage observation and formatting helpers
   view.ts                  # status/widget rendering

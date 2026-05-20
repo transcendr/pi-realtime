@@ -24,7 +24,7 @@ export function createControlPlane(pi: ExtensionAPI, store: Store, getContext: (
 			return deck;
 		},
 		sendSessionAwareness(session, active) {
-			pi.sendMessage({ customType: REALTIME_SESSION_MESSAGE_TYPE, content: renderRealtimeSessionMessage(session, active), display: true, details: { providerSessionId: session.providerSessionId, provider: session.provider, model: session.model, active, at: Date.now() } });
+			pi.sendMessage({ customType: REALTIME_SESSION_MESSAGE_TYPE, content: renderRealtimeSessionMessage(session, active), display: true, details: { providerSessionId: session.providerSessionId, provider: session.provider, model: session.model, interactionMode: session.interactionMode, active, at: Date.now() } });
 		},
 	};
 }

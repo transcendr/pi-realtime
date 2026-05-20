@@ -858,3 +858,40 @@ Review:
 - Verified the new baseline corresponds to intended design seams and not accidental coupling. No remediation needed.
 
 CLEAN IMPLEMENTATION.
+
+### Iteration 4 — Documentation and deslop residue pass
+
+Interrogate:
+
+1. Does user-facing documentation explain the new mode without overclaiming live provider behavior? README now describes agent and eco modes and explicitly labels isolated speech/deletion as live-proof items.
+2. Does `/realtime text` remain clear? README clarifies it is provider/debug text and is not converted into a Pi backend request.
+3. Are there obvious TypeScript slop residues? A targeted scan found double casts in the WebRTC bridge; they were replaced with one small provider-boundary conversion helper.
+4. Does session awareness expose the selected mode? The non-turn-triggering session message details now include `interactionMode`.
+5. Are deterministic gates still green after cleanup? Typecheck and validation pass after the residue cleanup.
+
+Progress:
+
+- Updated README with interaction-mode semantics and command examples.
+- Removed repeated double casts from the OpenAI WebRTC bridge.
+- Added `interactionMode` to session-awareness message details.
+- Ran targeted slop scan for casts/TODO/scattered eco identity checks.
+
+Unexpected outcomes:
+
+- No additional scattered `mode === "eco"` checks were found in implementation code; boundary checks are behavior-value based.
+
+Deviations/trade-offs:
+
+- The WebRTC bridge still needs a small cast at the provider/browser record boundary because SDK typed realtime events do not expose an index signature. The cast is isolated in `realtimeClientEventRecord` and does not weaken domain types.
+
+Validation:
+
+- `npm run gates:typecheck` passed.
+- `npm run gates:validation` passed.
+- Targeted scan found no `as unknown as`, `as any`, `TODO`, `FIXME`, or scattered eco identity checks.
+
+Review:
+
+- README and code now align with the design's non-goal that eco mode preserves Realtime STT/VAD/WebRTC while changing routing and capability surfaces.
+
+CLEAN IMPLEMENTATION.
