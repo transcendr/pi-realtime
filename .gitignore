@@ -6,6 +6,7 @@ node_modules/
 *.log
 .DS_Store
 references/
+.antigravitycli/
 .ai/*
 !.ai/validation/
 !.ai/validation/**
