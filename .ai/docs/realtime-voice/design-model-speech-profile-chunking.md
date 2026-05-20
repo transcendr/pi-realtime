@@ -1028,3 +1028,41 @@ Review:
 - Chunk metadata is added to the provider-neutral request contract but is not yet used as speakable content.
 
 CLEAN IMPLEMENTATION.
+
+### Phase E — provider trace visibility and non-speakable metadata
+
+Interrogate:
+
+1. Does chunk metadata enter the speakable payload? No. `renderRealtimeUpdateEnvelope` still speaks only escaped `input.text` inside `<speak_this_verbatim>` and does not reference `input.chunk`.
+2. Does OpenAI response creation preserve isolated updates? Yes. `backendUpdateResponseEvent` still uses `conversation: "none"`, `tools: []`, and `tool_choice: "none"` for isolated backend updates.
+3. Where should provider-side chunk visibility be added? The WebRTC bridge trace is the useful provider-side trace boundary, so it now records chunk index/count/original length alongside existing context-push trace fields.
+4. Should OpenAI raw adapter payload construction decide chunking? No. Raw and WebRTC adapters receive already-chunked `RealtimeContextPushRequest` values; `providers/openai/responses.ts` remains payload construction only.
+5. How can non-speakable metadata be proven locally? The context-push probe asserts optional chunk metadata in provider contracts, WebRTC trace fields, OpenAI envelope use of `input.text`, and absence of `input.chunk` from the update envelope renderer.
+
+Progress notes and unexpected outcomes:
+
+- Added chunk metadata fields to OpenAI WebRTC bridge context-push trace records.
+- Confirmed no change was needed in `providers/openai/responses.ts`; it already routes through `renderRealtimeUpdateEnvelope(input)` and uses isolated response creation.
+- Confirmed no change was needed in `realtime-updates.ts`; the renderer does not reference chunk metadata.
+- Extended deterministic context-push validation for non-speakable metadata and provider trace visibility.
+
+Deviations or trade-offs:
+
+- Raw OpenAI adapter has no existing debug trace recorder, so Phase E did not add new raw-adapter trace plumbing just for chunk metadata. Service traces still record every chunk before raw adapter delivery.
+
+Remaining risks or concerns:
+
+- Whether OpenAI/WebRTC actually plays burst chunks in order and cancels queued chunks on barge-in remains live-only and is deferred to Phase G.
+
+Validation:
+
+- `npm run gates:typecheck` passed.
+- `npm run gates:validation` passed.
+- Targeted review confirmed no chunk metadata appears in the speakable update envelope.
+
+Review:
+
+- Chunk metadata remains trace/debug-only.
+- Provider payload construction still uses existing backend-update envelope and response instruction paths.
+
+CLEAN IMPLEMENTATION.
