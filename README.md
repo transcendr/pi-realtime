@@ -23,6 +23,8 @@ See the [changelog](CHANGELOG.md) for details.
 - Optional localhost browser/WebRTC helper for speaker-safe media with browser echo cancellation, noise suppression, and automatic gain control.
 - Pi-to-realtime communication tools for spoken acknowledgements, progress updates, final answers, and active-session status checks.
 - Interaction modes: `agent` for the model-mediated request-tool flow, and `eco` for direct final transcript routing to Pi with no realtime request tools exposed.
+- OpenAI realtime model preference commands for switching future sessions between `gpt-realtime-mini` and `gpt-realtime-2`.
+- Model-profiled backend-update speech chunking for long Pi-to-realtime text updates.
 - Durable branch-aware replay of realtime session observations, context packets, tool calls, citation decks, and usage observations.
 - Compact status/widget rendering for active realtime sessions.
 - Provider-scoped tool result routing so concurrent sessions do not receive each other’s responses.
@@ -65,6 +67,7 @@ Use `/realtime` to manage realtime sessions from Pi.
 /realtime status
 /realtime start --provider fake [--mode agent|eco]
 /realtime start --provider openai [--mode agent|eco]
+/realtime openai model [gpt-realtime-mini|gpt-realtime-2]
 /realtime mode agent|eco
 /realtime text <message>
 /realtime usage [--session <providerSessionId>] [--details]
@@ -77,6 +80,8 @@ Common commands:
 - `/realtime start --provider fake` — start the deterministic local fake provider.
 - `/realtime start --provider openai` — start an OpenAI Realtime session using `OPENAI_API_KEY`.
 - `/realtime start --provider openai --mode eco` — start eco mode: final voice transcripts route directly to Pi; the realtime model only speaks explicit Pi updates.
+- `/realtime openai model` — show the current and available OpenAI realtime default models.
+- `/realtime openai model gpt-realtime-mini|gpt-realtime-2` — set the OpenAI realtime default model for future sessions; explicit `--model` start flags still override it.
 - `/realtime mode agent|eco` — set the default interaction mode for future sessions.
 - `/realtime text <message>` — send provider/debug text to the current primary realtime session; this is not converted into a Pi backend request.
 - `/realtime usage --details` — inspect tracked usage observations.
@@ -124,6 +129,7 @@ $EDITOR .env
 
 ```text
 /realtime start --provider openai
+/realtime openai model gpt-realtime-2
 /realtime openai text hello
 /realtime usage --details
 ```
