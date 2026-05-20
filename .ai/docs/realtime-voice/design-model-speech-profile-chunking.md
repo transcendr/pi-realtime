@@ -838,8 +838,6 @@ Deviations or trade-offs:
 
 - No implementation deviation. The only operational adjustment is force-staging this ignored design doc because the user explicitly made it the active ledger and commit artifact.
 
-> RESPONSE: The only operational adjustment is force-staging this ignored design doc because the user explicitly made it the active ledger and commit artifact.
-
 Remaining risks or concerns:
 
 - None for Phase 0. Later phases still require code implementation, phase gates, full quality, and live OpenAI/WebRTC proof for queueing and barge-in semantics.
@@ -1143,3 +1141,52 @@ Validation:
 Review:
 
 - The code does not claim or encode assumptions about live burst ordering beyond queue-first behavior; the design and ledger keep live behavior as deferred evidence.
+
+### Phase H — closeout and final audit
+
+Interrogate:
+
+1. Does the implementation adhere to the current design doc? Yes for local implementation: model switching, provider-owned behavior profiles, sentence-aware chunking, service fan-out, trace metadata, non-speakable metadata, deterministic validation, README documentation, and clean-worktree commit sequencing are implemented. Live Phase G proof is explicitly deferred by user choice.
+2. Is the code clean under deslop guidance? Yes. The hard deslop gate passed. Advisory scan findings were reviewed: service `availableModels?.()` and provider warning optional callback are deliberate optional capability checks, while audio-manager optional call and WebRTC helper bare delay are pre-existing/non-feature leads outside this patch.
+3. Does the code respect architecture/system design style? Yes. Provider-specific model names live under `providers/openai/`; pure domain modules own behavior profile resolution and speech chunking; service remains provider-neutral orchestration; OpenAI adapters only translate push requests to provider payloads.
+4. Does the code respect code style? Yes. TypeScript is strict, no `any`/double casts were introduced, chunking is deterministic, helpers are focused, and validation probes cover the important edge cases.
+5. Is the workspace ready to close locally? Pending this final ledger commit and final quality run, yes. The worktree must be clean after the final commit.
+
+Progress notes and unexpected outcomes:
+
+- Updated README with the user-facing `/realtime openai model` command and backend-update chunking feature note.
+- Ran `npm run scans:deslop`; reviewed four advisory leads and found no required remediation for this feature.
+- Ran `npm run gates:quality` after README changes; it passed.
+- Ran additional typecheck/validation, offline Pi load, `git diff --check`, targeted ripgrep audits, and file-size review.
+- Removed an accidental `> RESPONSE:` artifact from the ledger.
+
+Deviations or trade-offs:
+
+- Live OpenAI/WebRTC Phase G remains deferred by explicit user choice. The closeout is therefore “locally validated,” not “live proven.”
+- The current implementation keeps queue-first chunk fan-out and does not add response-done sequencing/cancellation until live evidence requires it.
+
+Remaining risks or concerns:
+
+- Burst chunk ordering over OpenAI WebRTC is not live-proven.
+- Barge-in cancellation of queued future chunks is not live-proven.
+- `gpt-realtime-2` live account availability and behavior are not live-proven.
+- Chunk sentence splitting is deterministic and tested but still heuristic; `maxChars` may need live tuning.
+
+Final audit findings:
+
+- Spec/design adherence: PASS locally, with Phase G live proof deferred and documented.
+- Deslop cleanliness: PASS. Hard gate passed; advisory leads reviewed without feature remediation required.
+- Architecture/system design compliance: PASS. Provider-specific identity stays provider-owned; service consumes behavior values; domain modules remain pure; provider payload construction remains under OpenAI provider files.
+- Code style compliance: PASS. No introduced `any`, double casts, TODO/FIXME, or prompt-only behavior fixes.
+- Validation: PASS for local gates; no live validation performed.
+
+Validation:
+
+- `npm run gates:typecheck` passed.
+- `npm run gates:validation` passed.
+- `npm run gates:quality` passed after structural remediation and README update.
+- `npm run scans:deslop` passed with reviewed advisory findings only.
+- `pi --offline --no-session --no-tools -e .pi/extensions/pi-realtime/index.ts --list-models` passed.
+- `git diff --check` passed.
+
+CLEAN IMPLEMENTATION for local closeout; live proof deferred by user choice.
