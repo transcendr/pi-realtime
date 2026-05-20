@@ -3,26 +3,33 @@ import type { Service } from "./service";
 import { parseInteractionMode } from "./domain/interaction-modes";
 import type { ProviderKind, ProviderSessionId, RealtimeInteractionModeId, VoiceToolName } from "./types";
 
+type RealtimeCommandHandler = (tokens: string[], ctx: ExtensionCommandContext, service: Service) => Promise<void> | void;
+
+const REALTIME_COMMANDS: Record<string, RealtimeCommandHandler> = {
+	help: (_tokens, ctx) => notify(ctx, helpText()),
+	status: (_tokens, ctx, service) => notify(ctx, service.statusText()),
+	start,
+	stop,
+	primary,
+	mode,
+	citations: (_tokens, ctx, service) => citations(ctx, service),
+	usage,
+	debug,
+	webrtc: webrtcPreference,
+	text,
+	mic,
+	audio,
+	openai,
+	fake,
+};
+
 export async function handleRealtimeCommand(args: string, ctx: ExtensionCommandContext, service: Service): Promise<void> {
 	service.refresh(ctx);
 	const tokens = tokenize(args);
 	const [cmd = "status", ...rest] = tokens;
-	if (cmd === "help") return notify(ctx, helpText());
-	if (cmd === "status") return notify(ctx, service.statusText());
-	if (cmd === "start") return start(rest, ctx, service);
-	if (cmd === "stop") return stop(rest, ctx, service);
-	if (cmd === "primary") return primary(rest, ctx, service);
-	if (cmd === "mode") return mode(rest, ctx, service);
-	if (cmd === "citations") return citations(ctx, service);
-	if (cmd === "usage") return usage(rest, ctx, service);
-	if (cmd === "debug") return debug(rest, ctx, service);
-	if (cmd === "webrtc") return webrtcPreference(rest, ctx, service);
-	if (cmd === "text") return text(rest, ctx, service);
-	if (cmd === "mic") return mic(rest, ctx, service);
-	if (cmd === "audio") return audio(rest, ctx, service);
-	if (cmd === "openai") return openai(rest, ctx, service);
-	if (cmd === "fake") return fake(rest, ctx, service);
-	notify(ctx, `Unknown /realtime command: ${cmd}\n${helpText()}`, "warning");
+	const handler = REALTIME_COMMANDS[cmd];
+	if (!handler) return notify(ctx, `Unknown /realtime command: ${cmd}\n${helpText()}`, "warning");
+	await handler(rest, ctx, service);
 }
 
 export function realtimeCompletions(): string[] {

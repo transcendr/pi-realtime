@@ -1,5 +1,5 @@
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { ContextPacket, ProviderKind, ProviderMediaMode, ProviderPreferences, ProviderSessionId, VoiceSessionRecord, VoiceToolSurface } from "../types";
+import type { ContextPacket, ProviderInteractionConfig, ProviderKind, ProviderMediaMode, ProviderPreferences, ProviderSessionId, VoiceSessionRecord, VoiceToolSurface } from "../types";
 import type { ProviderEventSink, RealtimeProviderAdapter } from "./types";
 
 export type ProviderAdapterInput = {
@@ -10,6 +10,8 @@ export type ProviderMediaStartInput = {
 	session: VoiceSessionRecord;
 	ctx: ExtensionContext;
 	surface: VoiceToolSurface;
+	systemPrompt: string;
+	interaction: ProviderInteractionConfig;
 	sink: ProviderEventSink;
 	packets: ContextPacket[];
 	currentAdapter?: RealtimeProviderAdapter;

@@ -4,7 +4,6 @@ import type { ContextPacket, DisconnectReason, NormalizedProviderEvent, Provider
 import type { ProviderConnectConfig, ProviderEventSink, RealtimeProviderAdapter, RealtimeContextPushRequest, ToolResultResponsePolicy, VoiceResponseRequest } from "../types";
 import { backendUpdateItemEvent, backendUpdateResponseEvent, responseCreateEvent } from "./responses";
 import { usageFromOpenAIInputTranscription, usageFromOpenAIResponseDone } from "./usage";
-import { providerInteractionFor } from "../../domain/interaction-modes";
 import { buildOpenAIRealtimeAudioConfig, isOpenAITranscriptActionable } from "./session-config";
 import { hasOpenAIRealtimeCredentials, renderContextPacket, toOpenAITool } from "./shared";
 
@@ -23,7 +22,7 @@ export class OpenAIRealtimeProviderAdapter implements RealtimeProviderAdapter {
 	private audioOutputEnabled = false;
 	private toolSurface: VoiceToolSurface | undefined;
 	private instructions: string | undefined;
-	private interaction: ProviderInteractionConfig = providerInteractionFor("agent");
+	private interaction: ProviderInteractionConfig | undefined;
 
 	constructor(providerSessionId: ProviderSessionId) {
 		this.providerSessionId = providerSessionId;
@@ -70,8 +69,9 @@ export class OpenAIRealtimeProviderAdapter implements RealtimeProviderAdapter {
 	}
 
 	async pushContext(input: RealtimeContextPushRequest): Promise<ProviderDeliveryReceipt> {
-		if (input.mode !== "request_spoken_response" || this.interaction.backendSpeechContext !== "isolated_update") this.send(backendUpdateItemEvent(input));
-		if (input.mode === "request_spoken_response") this.send(backendUpdateResponseEvent(input, this.interaction, [this.audioOutputEnabled ? "audio" : "text"]));
+		const interaction = this.requireInteraction();
+		if (input.mode !== "request_spoken_response" || interaction.backendSpeechContext !== "isolated_update") this.send(backendUpdateItemEvent(input));
+		if (input.mode === "request_spoken_response") this.send(backendUpdateResponseEvent(input, interaction, [this.audioOutputEnabled ? "audio" : "text"]));
 		return { status: "delivered", message: input.mode === "request_spoken_response" ? "backend update sent and spoken response requested" : "backend update sent without response" };
 	}
 
@@ -98,8 +98,9 @@ export class OpenAIRealtimeProviderAdapter implements RealtimeProviderAdapter {
 
 	private sendSessionUpdate(): void {
 		const surface = this.toolSurface;
-		if (!surface) return;
-		this.send({ type: "session.update", session: { type: "realtime", model: this.model, instructions: this.instructions, output_modalities: [this.audioOutputEnabled ? "audio" : "text"], audio: buildOpenAIRealtimeAudioConfig({ includeRawPcmFormat: true, includeRawPcmOutputFormat: true }), tools: this.interaction.tools.map(toOpenAITool), tool_choice: this.interaction.toolChoice } } as RealtimeClientEvent);
+		const interaction = this.interaction;
+		if (!surface || !interaction) return;
+		this.send({ type: "session.update", session: { type: "realtime", model: this.model, instructions: this.instructions, output_modalities: [this.audioOutputEnabled ? "audio" : "text"], audio: buildOpenAIRealtimeAudioConfig({ includeRawPcmFormat: true, includeRawPcmOutputFormat: true }), tools: interaction.tools.map(toOpenAITool), tool_choice: interaction.toolChoice } } as RealtimeClientEvent);
 	}
 
 	private awaitOpen(rt: OpenAIRealtimeWebSocket): Promise<void> {
@@ -115,7 +116,7 @@ export class OpenAIRealtimeProviderAdapter implements RealtimeProviderAdapter {
 		if (event.type === "conversation.item.input_audio_transcription.completed") {
 			this.emitUsage(usageFromOpenAIInputTranscription(event, { providerSessionId: this.providerSessionId, model: this.model, providerEventId: event.event_id }));
 			this.emit({ type: "user_transcript", text: event.transcript, final: true, providerEventId: event.event_id });
-			if (isOpenAITranscriptActionable(event.transcript) && this.interaction.transcriptHandling.response === "model") void this.requestResponse({ reason: "valid_transcript" }).catch((error) => this.emit({ type: "error", message: error.message, recoverable: true, providerEventId: event.event_id }));
+			if (isOpenAITranscriptActionable(event.transcript) && this.interaction?.transcriptHandling.response === "model") void this.requestResponse({ reason: "valid_transcript" }).catch((error) => this.emit({ type: "error", message: error.message, recoverable: true, providerEventId: event.event_id }));
 			return;
 		}
 		if (event.type === "response.output_text.done") return this.emit({ type: "assistant_transcript", text: event.text, final: true, providerEventId: event.event_id });
@@ -147,6 +148,11 @@ export class OpenAIRealtimeProviderAdapter implements RealtimeProviderAdapter {
 	private send(event: RealtimeClientEvent): void {
 		if (!this.socket) throw new Error("OpenAI realtime socket is not connected.");
 		this.socket.send(event);
+	}
+
+	private requireInteraction(): ProviderInteractionConfig {
+		if (!this.interaction) throw new Error("OpenAI realtime provider is not connected.");
+		return this.interaction;
 	}
 
 	private emit(event: Record<string, unknown> & { type: NormalizedProviderEvent["type"] }): void {

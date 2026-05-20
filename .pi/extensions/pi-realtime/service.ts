@@ -2,7 +2,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { createAudioManager, type AudioManager, type AudioManagerErrorKind } from "./audio-manager";
 import { configChanged, contextPacketSent, nextProviderSessionId, primaryChanged, providerEventObserved, sessionStarted, sessionStopped, usageObserved, usageReset, voiceToolCallReceived, voiceToolResultSent } from "./events";
 import { createDebugTraceRegistry, describeProviderEvent } from "./debug-trace";
-import { interactionMode, parseInteractionMode, providerInteractionFor, toolSurfaceFor } from "./domain/interaction-modes";
+import { interactionMode, toolSurfaceFor } from "./domain/interaction-modes";
 import { routeTranscriptToInstruction, type TranscriptRouteDecision, type UserTranscriptEvent } from "./domain/transcript-routing";
 import { buildCitationPacket, buildStatePacket, buildToolSurfacePacket, nextContextRevision } from "./state-packets";
 import type { ControlPlane } from "./control-plane";
@@ -164,13 +164,13 @@ class RealtimeService implements Service {
 		return this.store.state().config.providerPreferences[provider] ?? {};
 	}
 
-	async startSessionMedia(providerSessionId: ProviderSessionId, mode: ProviderMediaMode, ctx: ExtensionContext): Promise<string> {
+	async startSessionMedia(providerSessionId: ProviderSessionId, mediaMode: ProviderMediaMode, ctx: ExtensionContext): Promise<string> {
 		const session = this.requireSession(providerSessionId);
-		const media = this.providers.get(session.provider)?.media?.[mode];
-		if (!media) throw new Error(`${session.provider} does not support ${mode} media.`);
-		const surface = toolSurfaceFor(session.interactionMode);
-		const packets = this.buildPackets(ctx, providerSessionId, surface);
-		return media.start({ session, ctx, surface, sink: this.providerSink, packets, currentAdapter: this.adapters.get(providerSessionId), setAdapter: (adapter) => this.setAdapter(providerSessionId, adapter), stopLocalMedia: (id) => this.stopLocalMedia(id), recordContext: (packet, adapter) => this.recordContextPacket(providerSessionId, packet, adapter) });
+		const media = this.providers.get(session.provider)?.media?.[mediaMode];
+		if (!media) throw new Error(`${session.provider} does not support ${mediaMode} media.`);
+		const interaction = interactionMode(session.interactionMode);
+		const packets = this.buildPackets(ctx, providerSessionId, interaction.toolSurface);
+		return media.start({ session, ctx, surface: interaction.toolSurface, systemPrompt: interaction.systemPrompt(interaction.toolSurface), interaction: interaction.providerInteraction, sink: this.providerSink, packets, currentAdapter: this.adapters.get(providerSessionId), setAdapter: (adapter) => this.setAdapter(providerSessionId, adapter), stopLocalMedia: (id) => this.stopLocalMedia(id), recordContext: (packet, adapter) => this.recordContextPacket(providerSessionId, packet, adapter) });
 	}
 
 	async stopSessionMedia(providerSessionId?: ProviderSessionId): Promise<void> {

@@ -4,14 +4,13 @@ import type { ProviderConnectConfig, ProviderEventSink, RealtimeProviderAdapter,
 import type { WebRTCHelperServer } from "../../media/webrtc-helper/protocol";
 import { backendUpdateItemEvent, backendUpdateResponseEvent, responseCreateEvent } from "./responses";
 import { usageFromOpenAIInputTranscription, usageFromOpenAIResponseDone } from "./usage";
-import { providerInteractionFor } from "../../domain/interaction-modes";
 import { renderContextPacket } from "./shared";
 
 export class OpenAIWebRTCBridgeAdapter implements RealtimeProviderAdapter {
 	readonly provider: ProviderKind = "openai";
 	readonly mediaMode = "webrtc" as const;
 	private sink: ProviderEventSink | undefined;
-	private interaction: ProviderInteractionConfig = providerInteractionFor("agent");
+	private interaction: ProviderInteractionConfig | undefined;
 
 	constructor(readonly providerSessionId: ProviderSessionId, private readonly helper: WebRTCHelperServer, private readonly createClientSecret: () => Promise<unknown>, private readonly trace?: DebugTraceRecorder) {}
 
@@ -59,10 +58,11 @@ export class OpenAIWebRTCBridgeAdapter implements RealtimeProviderAdapter {
 	}
 
 	async pushContext(input: RealtimeContextPushRequest): Promise<ProviderDeliveryReceipt> {
+		const interaction = this.requireInteraction();
 		const wantsResponse = input.mode === "request_spoken_response";
-		if (!wantsResponse || this.interaction.backendSpeechContext !== "isolated_update") this.enqueue(realtimeClientEventRecord(backendUpdateItemEvent(input)));
+		if (!wantsResponse || interaction.backendSpeechContext !== "isolated_update") this.enqueue(realtimeClientEventRecord(backendUpdateItemEvent(input)));
 		this.trace?.write({ source: "provider_adapter", direction: wantsResponse ? "context_push_response_requested" : "context_push_context_only", reason: "pi_context_push", mode: input.mode, updateKind: input.kind, pushSource: input.source, summary: input.summary, textLength: input.text.length });
-		if (wantsResponse) this.enqueue(realtimeClientEventRecord(backendUpdateResponseEvent(input, this.interaction, ["audio"])));
+		if (wantsResponse) this.enqueue(realtimeClientEventRecord(backendUpdateResponseEvent(input, interaction, ["audio"])));
 		return { status: "delivered", message: wantsResponse ? "backend update queued and spoken response requested" : "backend update queued without response" };
 	}
 
@@ -87,6 +87,11 @@ export class OpenAIWebRTCBridgeAdapter implements RealtimeProviderAdapter {
 
 	private enqueue(event: Record<string, unknown>): void {
 		this.helper.enqueue(this.providerSessionId, event);
+	}
+
+	private requireInteraction(): ProviderInteractionConfig {
+		if (!this.interaction) throw new Error("OpenAI WebRTC bridge is not connected.");
+		return this.interaction;
 	}
 }
 
