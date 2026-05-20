@@ -10,6 +10,7 @@ export type { WebRTCHelperServer } from "./protocol";
 const HOST = "127.0.0.1";
 const CLIENT_HTML = ".pi/extensions/pi-realtime/media/webrtc-helper/client.html";
 const CLIENT_JS = ".pi/extensions/pi-realtime/media/webrtc-helper/client.js";
+const SESSION_CLEANUP_GRACE_MS = 5_000;
 
 type HelperSession = {
 	config: WebRTCHelperSessionConfig;
@@ -73,7 +74,7 @@ class LocalWebRTCHelperServer implements WebRTCHelperServer {
 		session.sink.onProviderEvent(this.normalize(session, { type: "disconnected", reason }) as NormalizedProviderEvent);
 		setTimeout(() => {
 			if (this.sessions.get(providerSessionId) === session) this.sessions.delete(providerSessionId);
-		}, 5000).unref();
+		}, SESSION_CLEANUP_GRACE_MS).unref();
 	}
 
 
