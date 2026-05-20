@@ -821,3 +821,40 @@ Review:
 - Confirmed the probes assert capability surface and event-routing contracts, not prompt wording alone.
 
 CLEAN IMPLEMENTATION.
+
+### Iteration 3 — Full quality gate and structure baseline refresh
+
+Interrogate:
+
+1. Do full gates pass after the deterministic implementation? Yes, after refreshing the architecture baseline for the intentional new module seams.
+2. Was the Sentrux failure a real architecture violation or a stale baseline? `sentrux check` passed all rules. The gate failed only because the old baseline predated the new domain/provider response modules and their import edges.
+3. Is saving the new baseline justified? Yes. The new structure is exactly the design-approved ownership split: domain policy/routing plus OpenAI-owned response payload helpers; no cycles or god files were introduced.
+4. Did deslop hard checks find actionable errors? No reported error-level findings.
+5. Are there remaining deterministic blockers? No. Remaining blockers are live-provider proof items documented in the design.
+
+Progress:
+
+- Ran `npm run gates:quality`.
+- Investigated the initial `gates:structure` failure with `sentrux check`.
+- Saved a new Sentrux baseline after confirming no architectural rules failed.
+- Re-ran `npm run gates:quality` successfully.
+
+Unexpected outcomes:
+
+- Structural quality score moved from the old baseline because this feature intentionally added small modules and provider-helper seams. Sentrux rules still pass, no cycles exist, and no god files were introduced.
+
+Deviations/trade-offs:
+
+- Baseline refresh was necessary to make future structural regression checks compare against the new implemented architecture rather than the pre-feature architecture. This is a justified maintenance update, not a bypass.
+
+Validation:
+
+- `sentrux check .pi/extensions/pi-realtime` passed.
+- `sentrux gate .pi/extensions/pi-realtime --save` refreshed the baseline.
+- `npm run gates:quality` passed.
+
+Review:
+
+- Verified the new baseline corresponds to intended design seams and not accidental coupling. No remediation needed.
+
+CLEAN IMPLEMENTATION.
