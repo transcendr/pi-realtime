@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1 - 2026-05-20
+
+### Fixed
+
+- Fixed WebRTC helper asset loading when `pi-realtime` is installed into another project and Pi is launched from that project’s working directory.
+
 ## 0.2.0 - 2026-05-20
 
 ### Highlights

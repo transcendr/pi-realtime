@@ -8,8 +8,8 @@ import type { WebRTCHelperInboundEvent, WebRTCHelperOutboundEvent, WebRTCHelperR
 export type { WebRTCHelperServer } from "./protocol";
 
 const HOST = "127.0.0.1";
-const CLIENT_HTML = ".pi/extensions/pi-realtime/media/webrtc-helper/client.html";
-const CLIENT_JS = ".pi/extensions/pi-realtime/media/webrtc-helper/client.js";
+const CLIENT_HTML = join(__dirname, "client.html");
+const CLIENT_JS = join(__dirname, "client.js");
 const SESSION_CLEANUP_GRACE_MS = 5_000;
 
 type HelperSession = {
@@ -192,11 +192,16 @@ class LocalWebRTCHelperServer implements WebRTCHelperServer {
 	}
 
 	private serveFile(res: ServerResponse, path: string, contentType: string): void {
+		const content = readFileSync(path);
 		res.writeHead(200, { "content-type": contentType, "cache-control": "no-store" });
-		res.end(readFileSync(join(process.cwd(), path)));
+		res.end(content);
 	}
 
 	private respond(res: ServerResponse, status: number, body: unknown): void {
+		if (res.headersSent) {
+			res.end();
+			return;
+		}
 		res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", "access-control-allow-origin": "http://127.0.0.1" });
 		res.end(JSON.stringify(body));
 	}
